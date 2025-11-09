@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CSMarketoverlay</string>
+    <string name="textview_inv">Inventory</string>
+    <string name="showoverlay">Show Overlay</string>
+    <string name="removeoverlay">Remove Overlay</string>
+</resources>
