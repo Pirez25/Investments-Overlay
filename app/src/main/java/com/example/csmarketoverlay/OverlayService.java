@@ -25,41 +25,40 @@ import androidx.annotation.Nullable;
 
 import java.util.HashMap;
 
-public class OverlayService extends Service {
+public class OverlayService extends Service {//Service executa em background
 
-    private WindowManager windowManager;
-    private View overlayView;
-    private TextView overlayText;
-    private WindowManager.LayoutParams params;
-    private final HashMap<String, Double> itemPrices = new HashMap<>();
-    private final HashMap<String, String> itemCustomNames = new HashMap<>();
+    private WindowManager windowManager;//variavel que cria janelas flutuantes
+    private View overlayView;//variavel para o layout?
+    private TextView overlayText;//texto do overlay
+    private WindowManager.LayoutParams params;//posicao do overlay?
+    private final HashMap<String, Double> itemPrices = new HashMap<>();//guarda os precos enviados pela main activity
+    private final HashMap<String, String> itemCustomNames = new HashMap<>();//guarda nomes de cada item
 
-    private final BroadcastReceiver overlayReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver overlayReceiver = new BroadcastReceiver() {//cria um receiver anónimo
         @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent == null || !"UPDATE_OVERLAY_ITEM".equals(intent.getAction())) return;
-
-            String item = intent.getStringExtra("item_name");
-            double preco = intent.getDoubleExtra("item_price", 0.0);
+        public void onReceive(Context context, Intent intent) {//Este metodo é chamado assim que recebe um broadcast
+            if (intent == null || !"UPDATE_OVERLAY_ITEM".equals(intent.getAction())) return;//se a mensagem for invalida e nao for a acao correta sai com return
+            String item = intent.getStringExtra("item_name");//recebe o nome da string da main activity(jason)
+            double preco = intent.getDoubleExtra("item_price", 0.0);//recebe o valor do double da main activity(jason)
 
             if (item != null) {
                 itemPrices.put(item, preco);
-                refreshOverlay();
+                refreshOverlay();//se o overlay já tiver ativo só atualiza os precos caso receba valor
             }
         }
     };
 
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")//evitar spam warnings (android14+)
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            initializeCustomNames();
+            initializeCustomNames();//chama funcao
 
             if (overlayView != null && windowManager != null) {
                 try {
-                    windowManager.removeViewImmediate(overlayView);
-                } catch (Exception ignored) {}
-                overlayView = null;
+                    windowManager.removeViewImmediate(overlayView);//remove a view para evitar crash
+                } catch (Exception ignored) {}//caso de erro ignora
+                overlayView = null;//evitar risco de crash e memory leak
             }
 
             createOverlay();
@@ -69,10 +68,10 @@ public class OverlayService extends Service {
             Log.e("OverlayService", "Erro ao iniciar serviço", e);
             stopSelf();
         }
-        return START_STICKY;
+        return START_STICKY;//garantir que o servico nao morre para tar sempre a atualizar os valores
     }
 
-    private void initializeCustomNames() {
+    private void initializeCustomNames() {//nome da esquerda é hash name(nome da API), direita é nome costumizavel
         itemCustomNames.put("Gallery Case", "Galry");
         itemCustomNames.put("CS20 Case", "CS20");
         itemCustomNames.put("Dreams & Nightmares Case", "D&N");
