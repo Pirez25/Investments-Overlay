@@ -81,7 +81,7 @@ public class OverlayService extends Service {//Service executa em background
 
     private void createOverlay() {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        if (windowManager == null) {
+        if (windowManager == null) {//verificacaoes no log
             Log.e("OverlayService", "WindowManager é null");
             return;
         }
