@@ -71,7 +71,8 @@ public class OverlayService extends Service {//Service executa em background
         return START_STICKY;//garantir que o servico nao morre para tar sempre a atualizar os valores
     }
 
-    private void initializeCustomNames() {//nome da esquerda é hash name(nome da API), direita é nome costumizavel
+    private void initializeCustomNames() {
+        //nome da esquerda é hash name(nome da API), direita é nome costumizavel
         itemCustomNames.put("Gallery Case", "Galry");
         itemCustomNames.put("CS20 Case", "CS20");
         itemCustomNames.put("Dreams & Nightmares Case", "D&N");
@@ -80,8 +81,9 @@ public class OverlayService extends Service {//Service executa em background
     }
 
     private void createOverlay() {
+        //verificacaoes no log
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        if (windowManager == null) {//verificacaoes no log
+        if (windowManager == null) {
             Log.e("OverlayService", "WindowManager é null");
             return;
         }
@@ -99,58 +101,58 @@ public class OverlayService extends Service {//Service executa em background
             return;
         }
 
-        overlayText.setText("Loading...");
-        overlayText.setPadding(0, 0, 0, 0);
-        overlayText.setIncludeFontPadding(false);
+        overlayText.setText("Loading");
+        overlayText.setPadding(10, 10, 10, 10);
 
+        //versao do android
         int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
         params = new WindowManager.LayoutParams(
+                //Com tamanho automático
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
-                layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
+                layoutFlag,//Que funciona em todas as versões do Android
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE//nao bloquear a tela
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,//Que pode ser arrastada livremente
+                PixelFormat.TRANSLUCENT//Com fundo transparente
         );
 
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 50;
-        params.y = 200;
+        params.x = 750;
+        params.y = 0;
 
-        windowManager.addView(overlayView, params);
+        windowManager.addView(overlayView, params);//deixar por cima de todas as apps
 
         makeDraggable();
 
-        startForegroundNotification();
+        startForegroundNotification();//Cria uma notificação persistente,Define o serviço como foreground,Garante que o overlay não é encerrado quando a app vai para background
     }
 
     public void setCustomItemName(String itemKey, String customName) {
-        if (itemKey != null && customName != null) {
-            itemCustomNames.put(itemKey, customName);
-            refreshOverlay();
+        if (itemKey != null && customName != null) {//primeiro verifica se n é null
+            itemCustomNames.put(itemKey, customName);//mete o nome que está associado a key no caso é o hashname
+            refreshOverlay();//chama funcao
         }
     }
 
     private void refreshOverlay() {
-        if (overlayText == null) return;
+        if (overlayText == null) return;//se nao houver termina a funcao
 
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();//construir string
 
-        int count = 0;
+        int count = 0;//contar
         int size = itemPrices.size();
 
-        for (String item : itemPrices.keySet()) {
-            String displayName = itemCustomNames.getOrDefault(item, item);
-            Double price = itemPrices.get(item);
+        for (String item : itemPrices.keySet()) {//percorre as chaves dos itens
+            String displayName = itemCustomNames.getOrDefault(item, item);//pega o nome personalizado de cada item
+            Double price = itemPrices.get(item);//se nao houver personalizado pega o nome do item normal
 
             if (displayName != null && price != null) {
-                sb.append(displayName)
-                        .append(": ")
-                        .append(String.format("%.2f€", price));
+                sb.append(displayName)//adiciona o nome
+                        .append(": ")//adiciona os dois pontos
+                        .append(String.format("%.2f€", price));//formatacao do preco
 
                 // Adiciona '\n' somente se não for o último item
                 if (count < size - 1) {
@@ -164,7 +166,7 @@ public class OverlayService extends Service {//Service executa em background
     }
 
 
-    private void makeDraggable() {
+    private void makeDraggable() {//funcao para poder arrastar o overlay
         if (overlayView == null) return;
 
         windowManager.getDefaultDisplay().getMetrics(new DisplayMetrics()); // To avoid createMetrics error
@@ -215,7 +217,7 @@ public class OverlayService extends Service {//Service executa em background
         });
     }
 
-    private void startForegroundNotification() {
+    private void startForegroundNotification() {//notificacao
         String channelId = "overlay_channel";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(channelId,

@@ -105,8 +105,8 @@ public class MainActivity extends AppCompatActivity {
 
         }).start();
 
-        // Atualização automática a cada 2 min
-        handler.postDelayed(this::fetchAndSendPrices, 120_000);
+        // Atualização automática a cada 3 min
+        handler.postDelayed(this::fetchAndSendPrices, 180_000);
     }
     private static final String TAG = "MainActivity";//Tag para log quando encontra um try,catch(Exeption)
     private double fetchPrice(String item)//funçao fetch price que recebe o item
