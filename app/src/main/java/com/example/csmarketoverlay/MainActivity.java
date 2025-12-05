@@ -22,6 +22,7 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler = new Handler(); //declarei handler aqui para nao ter que tar sempre a declarar
 
     private final String[] item_id = { //biblioteca de itens a ser buscado na API(hash_name)
+            //aqui tenho de ir buscar o nome da hashname á base de dados
             "Gallery Case",
             "CS20 Case",
             "Dreams & Nightmares Case",
@@ -145,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private double parsePrice(String valorBruto) {
-        try {                                                       //Remove símbolos e letras
+        try {//Remove símbolos e letras
             return Double.parseDouble(valorBruto.replaceAll("[^\\d,\\.]", "").replace(",", "."));
         } catch (Exception e) {
             return 0.0;
@@ -153,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private double applyMultiplier(int index, double price) {
-        switch (index) {
+        switch (index) {//aqui tenho que ir buscar a quantidade á database
             case 0: return price * 203;
             case 1: return price * 254;
             case 2: return price * 102;
