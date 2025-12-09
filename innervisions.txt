@@ -10,6 +10,5 @@ uma textview onde aparece tudo, a api atualiza entre 1 a 10 minutos para evitar 
 4-quando a pessoa abre a aplicacao conseguir detetar se tem as permissoes ativas e redirecionar para lá
 5-Implementar um inventario onde  utilizador possa personalizar e verificar os precos, se possivel mostrar estatisticas
 6-melhorar o design do overlay e da aplicacao
-7-meter só um botao para ligar desligar
+7-meter só um botao para ligar desligar-Andre✅
 8-verificar se nao preciso de aumentar o tempo que a api atualiza para nao ocorrer erros da api ficar em baixo devido a muitas requests
-9-quando telemovel ta com o ecra virado aparece a borda como se tivesse na vertical

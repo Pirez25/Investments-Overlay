@@ -1,10 +1,12 @@
 package com.example.csmarketoverlay;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.widget.Button;
@@ -19,7 +21,9 @@ import java.net.URLEncoder;
 
 public class MainActivity extends AppCompatActivity {
 
-    private final Handler handler = new Handler(); //declarei handler aqui para nao ter que tar sempre a declarar
+    private static final String TAG = "MainActivity";//Tag para log quando encontra um try,catch(Exeption)
+
+    private final Handler handler = new Handler(Looper.getMainLooper()); //declarei handler aqui para nao ter que tar sempre a declarar
 
     private final String[] item_id = { //biblioteca de itens a ser buscado na API(hash_name)
             //aqui tenho de ir buscar o nome da hashname á base de dados
@@ -33,7 +37,11 @@ public class MainActivity extends AppCompatActivity {
     private final String API_URL = "https://steamcommunity.com/market/priceoverview/?currency=3&appid=730&market_hash_name=";//variavel com API
 
     private TextView invPriceTextView;// Variavel para exibir o preço total do inventário
+    private Button btnToggle; // Botão único para abrir/remover overlay
 
+    private boolean overlayAtivo = false; // Flag para saber se o overlay está ativo
+
+    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -41,15 +49,33 @@ public class MainActivity extends AppCompatActivity {
 
         //buscar variaveis ao layout(XML)
         invPriceTextView = findViewById(R.id.invprice);
-        Button btnStart = findViewById(R.id.btnStart);
-        Button btnStop = findViewById(R.id.btnStop);
+        btnToggle = findViewById(R.id.btnToggle); // botão no XML
+        //comeca o overlay quando abre a aplicacao
+        startOverlayWithPermission();
 
+        // Botão único: abre ou remove o overlay
+        btnToggle.setOnClickListener(v -> {
+            if (overlayAtivo) {
+                // Se já está ativo, para a classe do overlay e pára updates
+                stopService(new Intent(this, OverlayService.class));//para a classe do overlay
+                handler.removeCallbacksAndMessages(null); // pára as atualizações automáticas de preços
+                overlayAtivo = false;
+                btnToggle.setText("Abrir overlay");
+            } else {
+                // Se não está ativo, chama a função do overlay
+                startOverlayWithPermission();//Chama a funçao do overlay
+            }
+        });
 
-        btnStart.setOnClickListener(v -> startOverlayWithPermission());//Chama a funçao do overlay
-        btnStop.setOnClickListener(v -> stopService(new Intent(this, OverlayService.class)));//para a classe do overlay
+        // Se ainda quiseres que abra automaticamente ao iniciar, descomenta:
+        // handler.postDelayed(this::startOverlayWithPermission, 200);// Assim que abrir o app, inicia automaticamente o overlay
+    }
 
-
-        new Handler().postDelayed(this::startOverlayWithPermission, 200);// Assim que abrir o app, inicia automaticamente o overlay
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Boa prática: remover callbacks quando a activity é destruída
+        handler.removeCallbacksAndMessages(null);
     }
 
     private void startOverlayWithPermission() //funçao para iniciar a classe do overlay
@@ -68,6 +94,9 @@ public class MainActivity extends AppCompatActivity {
         // Garante que o serviço overlay é reiniciado limpo
         stopService(new Intent(this, OverlayService.class));//se já tiver ativo um overlay ele fecha
         handler.postDelayed(() -> startService(new Intent(this, OverlayService.class)), 0);
+
+        overlayAtivo = true; // marca como ativo
+        btnToggle.setText("Fechar overlay"); // atualiza texto do botão
 
         // Atualiza preços logo depois
         handler.postDelayed(this::fetchAndSendPrices, 200);
@@ -106,10 +135,12 @@ public class MainActivity extends AppCompatActivity {
 
         }).start();
 
-        // Atualização automática a cada 3 min
-        handler.postDelayed(this::fetchAndSendPrices, 180_000);
+        // Atualização automática a cada 3 min (só se o overlay ainda estiver ativo)
+        if (overlayAtivo) {
+            handler.postDelayed(this::fetchAndSendPrices, 180_000);
+        }
     }
-    private static final String TAG = "MainActivity";//Tag para log quando encontra um try,catch(Exeption)
+
     private double fetchPrice(String item)//funçao fetch price que recebe o item
     {
         try {
