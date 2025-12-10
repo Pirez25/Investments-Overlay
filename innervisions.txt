@@ -1,7 +1,4 @@
--A API já esta a funcionar assim como a overlay, os butoes tao a funcionar e está a calcular precos predefinidos no codigo
-assim mostrando o total do preco dos investimentos, assim que a app abre o overlay comeca a funcionar, o overlay tem apenas
-uma textview onde aparece tudo, a api atualiza entre 1 a 10 minutos para evitar que a api fique sobrecarregada e pare de funcionar
--Andre✅
+-A API já esta a funcionar assim como a overlay, os butoes tao a funcionar e está a calcular precos predefinidos no codigo assim mostrando o total do preco dos investimentos, assim que a app abre o overlay comeca a funcionar, o overlay tem apenas uma textview onde aparece tudo, a api atualiza entre 1 a 10 minutos para evitar que a api fique sobrecarregada e pare de funcionar-Andre✅
 0-fazer a documentacao do codigo-Andre✅
  fazer um mapa do codigo
 1-Fazer base de dados
@@ -11,4 +8,10 @@ uma textview onde aparece tudo, a api atualiza entre 1 a 10 minutos para evitar 
 5-Implementar um inventario onde  utilizador possa personalizar e verificar os precos, se possivel mostrar estatisticas
 6-melhorar o design do overlay e da aplicacao
 7-meter só um botao para ligar desligar-Andre✅
-8-verificar se nao preciso de aumentar o tempo que a api atualiza para nao ocorrer erros da api ficar em baixo devido a muitas requests
+8-verificar se nao preciso de aumentar o tempo que a api atualiza para nao ocorrer erros da api ficar em baixo devido a muitas requests-Andre✅
+9-poder mexer o overlay-Andre✅
+10-meter a API a funcionar-Andre✅
+11-resolver problema de quando vira o ecra nao limitar-Andre✅
+12-calcular o total do inventario-Andre✅
+13-meter todas as views do overlay numa só textview-Andre✅
+14-resolver o problema de apararecer sempre um espaço a mais-Andre✅
