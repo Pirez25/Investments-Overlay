@@ -5,7 +5,7 @@
 2-overlay no lock screen
 3-juntar pelo menos 2 APIs(Steam API,Bitcoin,Stocks)
 4-quando a pessoa abre a aplicacao conseguir detetar se tem as permissoes ativas e redirecionar para lá
-5-Implementar um inventario onde  utilizador possa personalizar e verificar os precos
+5-Implementar um inventario onde  utilizador possa personalizar e verificar os precos, se possivel mostrar estatisticas
 6-melhorar o design do overlay e da aplicacao
 7-meter só um botao para ligar desligar-Andre✅
 8-verificar se nao preciso de aumentar o tempo que a api atualiza para nao ocorrer erros da api ficar em baixo devido a muitas requests-Andre✅
