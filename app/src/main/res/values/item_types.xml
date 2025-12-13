@@ -1,0 +1,7 @@
+<resources>
+    <string-array name="item_types">
+        <item>Crypto</item>
+        <item>Steam</item>
+        <item>Stock</item>
+    </string-array>
+</resources>

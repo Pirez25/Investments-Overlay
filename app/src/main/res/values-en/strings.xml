@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">CSMarketoverlay</string>
+    <string name="app_name">InvestmentsOverlay</string>
     <string name="textview_inv">Inventory</string>
     <string name="showoverlay">Show Overlay</string>
     <string name="removeoverlay">Remove Overlay</string>
+    <string name="open_overlay">Open overlay</string>
+    <string name="close_overlay">Close overlay</string>
+    <string name="edit">Edit</string>
+    <string name="remove">Remove</string>
+    <string name="fill_everything">Fill everything!</string>
+    <string name="edit_quantity">Edit Quantity</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
 </resources>

@@ -1,6 +1,14 @@
 <resources>
-    <string name="app_name">CSMarketoverlay</string>
-    <string name="textview_inv" >Inventário</string>
-    <string name="showoverlay" >Mostrar Overlay</string>
-    <string name="removeoverlay" >Remover Overlay</string>
+    <string name="app_name">InvestmentsOverlay</string>
+    <string name="textview_inv">Inventário</string>
+    <string name="showoverlay">Mostrar Overlay</string>
+    <string name="removeoverlay">Remover Overlay</string>
+    <string name="open_overlay">Abrir overlay</string>
+    <string name="close_overlay">Fechar overlay</string>
+    <string name="edit">Editar</string>
+    <string name="remove">Remover</string>
+    <string name="fill_everything">Preenche tudo!</string>
+    <string name="edit_quantity">Editar Quantidade</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancelar</string>
 </resources>

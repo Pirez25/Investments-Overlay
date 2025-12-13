@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CSMarketoverlay"
+rootProject.name = "InvestmentsOverlay"
 include(":app")

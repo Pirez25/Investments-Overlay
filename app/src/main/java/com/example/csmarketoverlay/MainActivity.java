@@ -1,9 +1,12 @@
 package com.example.csmarketoverlay;
 
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -11,185 +14,279 @@ import android.provider.Settings;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.TextView;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.Serializable;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "MainActivity";//Tag para log quando encontra um try,catch(Exeption)
+    private static final String TAG = "MainActivity";
 
-    private final Handler handler = new Handler(Looper.getMainLooper()); //declarei handler aqui para nao ter que tar sempre a declarar
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private final String[] item_id = { //biblioteca de itens a ser buscado na API(hash_name)
-            //aqui tenho de ir buscar o nome da hashname á base de dados
-            "Gallery Case",
-            "CS20 Case",
-            "Dreams & Nightmares Case",
-            "M4A1-S | Vaporwave (Field-Tested)",
-            "Number K | The Professionals"
+    private SharedPreferences prefs;
+    private final List<String> itemNames = new ArrayList<>();
+    private final Map<String, Double> quantities = new HashMap<>();
+    private final Map<String, String> itemTypes = new HashMap<>();
+    private final Map<String, String> customNames = new HashMap<>();
+
+    private TextView invPriceTextView;
+    private Button btnToggle;
+    private boolean overlayAtivo = false;
+    private PriceCache priceCache;
+
+    private final BroadcastReceiver inventoryUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            loadInventory();
+            if (overlayAtivo) {
+                updatePrices();
+            }
+        }
     };
-
-    private final String API_URL = "https://steamcommunity.com/market/priceoverview/?currency=3&appid=730&market_hash_name=";//variavel com API
-
-    private TextView invPriceTextView;// Variavel para exibir o preço total do inventário
-    private Button btnToggle; // Botão único para abrir/remover overlay
-
-    private boolean overlayAtivo = false; // Flag para saber se o overlay está ativo
 
     @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main); // Define o layout da Activity
+        setContentView(R.layout.activity_main);
 
-        //buscar variaveis ao layout(XML)
         invPriceTextView = findViewById(R.id.invprice);
-        btnToggle = findViewById(R.id.btnToggle); // botão no XML
-        //comeca o overlay quando abre a aplicacao
-        startOverlayWithPermission();
+        btnToggle = findViewById(R.id.btnToggle);
+        Button btnManageInventory = findViewById(R.id.btnManageInventory);
 
-        // Botão único: abre ou remove o overlay
-        btnToggle.setOnClickListener(v -> {
-            if (overlayAtivo) {
-                // Se já está ativo, para a classe do overlay e pára updates
-                stopService(new Intent(this, OverlayService.class));//para a classe do overlay
-                handler.removeCallbacksAndMessages(null); // pára as atualizações automáticas de preços
-                overlayAtivo = false;
-                btnToggle.setText("Abrir overlay");
-            } else {
-                // Se não está ativo, chama a função do overlay
-                startOverlayWithPermission();//Chama a funçao do overlay
-            }
-        });
+        prefs = getSharedPreferences("CSOverlayPrefs", MODE_PRIVATE);
+        priceCache = new PriceCache(this);
 
-        // Se ainda quiseres que abra automaticamente ao iniciar, descomenta:
-        // handler.postDelayed(this::startOverlayWithPermission, 200);// Assim que abrir o app, inicia automaticamente o overlay
+        loadInventory();
+
+        btnManageInventory.setOnClickListener(v -> startActivity(new Intent(this, InventoryPriceActivity.class)));
+        btnToggle.setOnClickListener(v -> toggleOverlay());
+
+        registerReceiver(inventoryUpdateReceiver, new IntentFilter("INVENTORY_UPDATED"));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadInventory();
+        overlayAtivo = OverlayService.isRunning();
+        updateButtonText();
+        if (overlayAtivo) {
+            updatePrices();
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Boa prática: remover callbacks quando a activity é destruída
-        handler.removeCallbacksAndMessages(null);
+        unregisterReceiver(inventoryUpdateReceiver);
     }
 
-    private void startOverlayWithPermission() //funçao para iniciar a classe do overlay
-    {
-        // Verifica permissão de overlay (necessária em Android 6+)
-        //Se o Android for 6 ou superior e a app não tiver permissão, o código dentro do if será executado.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this))
-        {
-//Build.VERSION.SDK_INT: retorna a versão do Android. Build.VERSION_CODES.M: constante que representa o Android 6 (Marshmallow). Settings.canDrawOverlays(this): verifica se a app já tem permissão para sobrepor
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,//Abrir definicoes permissoes de Overlay
-                    Uri.parse("package:" + getPackageName()));//vai dizer que é esta aplicacao que ele quer referenciar quando tiver a dar a permissao nas definicoes
-            startActivity(intent);
-            return;//return para sair do metodo porque o utilizador ainda nao deu permissao
-        }
-
-        // Garante que o serviço overlay é reiniciado limpo
-        stopService(new Intent(this, OverlayService.class));//se já tiver ativo um overlay ele fecha
-        handler.postDelayed(() -> startService(new Intent(this, OverlayService.class)), 0);
-
-        overlayAtivo = true; // marca como ativo
-        btnToggle.setText("Fechar overlay"); // atualiza texto do botão
-
-        // Atualiza preços logo depois
-        handler.postDelayed(this::fetchAndSendPrices, 200);
-    }
-
-    private void fetchAndSendPrices() {
-        new Thread(() -> {// criar nova thread para evitar crash ao buscar preços
-            double total = 0.0;// variável para somar o total dos preços
-
-            for (int i = 0; i < item_id.length; i++)
-            {
-                String item = item_id[i];
-                double preco = fetchPrice(item);//chama funçao fetchPrice com o item
-
-                //depois de executar o fetch price executa em baixo
-                double precoMultiplicado = applyMultiplier(i, preco);
-                total += precoMultiplicado;
-                double finalTotal = total;
-
-                // Atualiza o preço total do inventario no main imediatamente
-                handler.post(() -> invPriceTextView.setText(
-                        String.format("Total Inventory: %.2f€", finalTotal)
-                ));
-
-                // Atualiza overlay com preços sem multiplicar
-                Intent it = new Intent("UPDATE_OVERLAY_ITEM");
-                it.putExtra("item_name", item);
-                it.putExtra("item_price", preco);
-                sendBroadcast(it);
+    private void loadInventory() {
+        itemNames.clear();
+        quantities.clear();
+        itemTypes.clear();
+        customNames.clear();
+        String data = prefs.getString("items", "");
+        if (data.isEmpty()) {
+            addItem("Steam", "Gallery Case", "", 203.0);
+            addItem("Steam", "CS20 Case", "", 254.0);
+            addItem("Steam", "Dreams & Nightmares Case", "", 102.0);
+        } else {
+            for (String s : data.split(";")) {
+                if (s.contains(":")) {
+                    String[] p = s.split(":");
+                    if (p.length == 4) {
+                        addItem(p[0], p[1], p[2], Double.parseDouble(p[3]));
+                    } else if (p.length == 3) {
+                        addItem(p[0], p[1], "", Double.parseDouble(p[2]));
+                    } else if (p.length == 2) {
+                        addItem("Steam", p[0], "", Double.parseDouble(p[1]));
+                    }
+                }
             }
+        }
+    }
+
+    private void saveInventory() {
+        StringBuilder sb = new StringBuilder();
+        List<String> itemNamesSnapshot;
+        synchronized (itemNames) {
+            itemNamesSnapshot = new ArrayList<>(itemNames);
+        }
+        for (String name : itemNamesSnapshot) {
+            sb.append(itemTypes.get(name)).append(":")
+              .append(name).append(":")
+              .append(customNames.get(name)).append(":")
+              .append(quantities.get(name)).append(";");
+        }
+        prefs.edit().putString("items", sb.toString()).apply();
+    }
+
+    private void addItem(String type, String name, String customName, double qty) {
+        if (!itemNames.contains(name)) {
+             itemNames.add(name);
+        }
+        quantities.put(name, qty);
+        itemTypes.put(name, type);
+        customNames.put(name, customName);
+        saveInventory();
+    }
+
+    private void toggleOverlay() {
+        if (overlayAtivo) {
+            stopService(new Intent(this, OverlayService.class));
+            handler.removeCallbacksAndMessages(null);
+            overlayAtivo = false;
+        } else {
+            startOverlayWithPermission();
+            overlayAtivo = true;
+        }
+        updateButtonText();
+    }
+
+    private void updateButtonText() {
+        btnToggle.setText(overlayAtivo ? R.string.close_overlay : R.string.open_overlay);
+    }
+
+    private void startOverlayWithPermission() {
+        if (!Settings.canDrawOverlays(this)) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
+            return;
+        }
+        startService(new Intent(this, OverlayService.class));
+        handler.postDelayed(this::updatePrices, 600);
+    }
+
+    private void updatePrices() {
+        ApiRequestExecutor.getInstance().execute(() -> {
+            Map<String, String> itemTypesSnapshot;
+            Map<String, Double> quantitiesSnapshot;
+            Map<String, String> customNamesSnapshot;
+            Map<String, Double> pricesSnapshot = new HashMap<>();
+
+            synchronized (itemNames) {
+                 itemTypesSnapshot = new HashMap<>(itemTypes);
+                 quantitiesSnapshot = new HashMap<>(quantities);
+                 customNamesSnapshot = new HashMap<>(customNames);
+            }
+
+            double total = 0;
+            for (String item : itemTypesSnapshot.keySet()) {
+                double price = 0;
+                String type = itemTypesSnapshot.get(item);
+
+                if (type != null) {
+                    switch (type) {
+                        case "Steam":
+                            price = getSteamPrice(item);
+                            break;
+                        case "Crypto":
+                            price = getCryptoPrice(item);
+                            break;
+                        case "Stock":
+                            price = getStockPrice(item);
+                            break;
+                    }
+                }
+                pricesSnapshot.put(item, price);
+                double qty = quantitiesSnapshot.getOrDefault(item, 1.0);
+                total += price * qty;
+            }
+
+            Intent intent = new Intent("UPDATE_OVERLAY_DATA");
+            intent.putExtra("itemPrices", (Serializable) pricesSnapshot);
+            intent.putExtra("itemTypes", (Serializable) itemTypesSnapshot);
+            intent.putExtra("customNames", (Serializable) customNamesSnapshot);
+            sendBroadcast(intent);
 
             double finalTotal = total;
-            handler.post(() -> invPriceTextView.setText(
-                    String.format("Total Inventory: %.2f€", finalTotal)
-            ));
+            handler.post(() -> invPriceTextView.setText(String.format(Locale.getDefault(), "%.2f€", finalTotal)));
 
-        }).start();
-
-        // Atualização automática a cada 3 min (só se o overlay ainda estiver ativo)
-        if (overlayAtivo) {
-            handler.postDelayed(this::fetchAndSendPrices, 180_000);
-        }
-    }
-
-    private double fetchPrice(String item)//funçao fetch price que recebe o item
-    {
-        try {
-
-            String urlStr = API_URL + URLEncoder.encode(item, "UTF-8");// Mete o nome do item na hash_name da API
-            HttpURLConnection c = (HttpURLConnection) new URL(urlStr).openConnection();//abre ligaçao http
-            c.setRequestProperty("User-Agent", "Mozilla/5.0");// Evita bloqueios da Steam API
-            c.setConnectTimeout(5000);// Tempo máximo de conexão
-            c.setReadTimeout(5000);// Tempo máximo de leitura
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(c.getInputStream()));//lê a resposta da API
-            StringBuilder response = new StringBuilder();//cria objeto para acumular o texto
-            String line;
-            while ((line = reader.readLine()) != null)
-                response.append(line);
-            reader.close();
-
-            JSONObject json = new JSONObject(response.toString());
-            /*{ Exemplo do json file
-             "success": true,
-             "lowest_price": "3,47€",
-             "median_price": "3,50€"
-            }*/
-            if (json.has("lowest_price")) {
-                return parsePrice(json.getString("lowest_price"));
-            } else if (json.has("median_price")) {
-                return parsePrice(json.getString("median_price"));
+            if (overlayAtivo) {
+                handler.postDelayed(this::updatePrices, 300000);
             }
-
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao buscar preço de " + item, e);
-        }
-        return 0.0;//retorna 0 para nao dar erro caso nao consiga receber o valor
+        });
     }
 
-    private double parsePrice(String valorBruto) {
-        try {//Remove símbolos e letras
-            return Double.parseDouble(valorBruto.replaceAll("[^\\d,\\.]", "").replace(",", "."));
+    private double getSteamPrice(String item) {
+        double cachedPrice = priceCache.getPrice(item);
+        if (cachedPrice != -1) {
+            return cachedPrice;
+        }
+
+        try {
+            String url = "https://steamcommunity.com/market/priceoverview/?currency=3&appid=730&market_hash_name=" + URLEncoder.encode(item, StandardCharsets.UTF_8.toString());
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setRequestProperty("User-Agent", "Mozilla/5.0");
+            BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line);
+            r.close();
+            JSONObject json = new JSONObject(sb.toString());
+            String priceStr = json.optString("lowest_price", json.optString("median_price", "0"));
+            double price = parsePrice(priceStr);
+            priceCache.savePrice(item, price);
+            return price;
         } catch (Exception e) {
+            Log.e(TAG, "Erro Steam", e);
             return 0.0;
         }
     }
 
-    private double applyMultiplier(int index, double price) {
-        switch (index) {//aqui tenho que ir buscar a quantidade á database
-            case 0: return price * 203;
-            case 1: return price * 254;
-            case 2: return price * 102;
-            default: return price;
+    private double getCryptoPrice(String cryptoId) {
+        double cachedPrice = priceCache.getPrice(cryptoId);
+        if (cachedPrice != -1) {
+            return cachedPrice;
+        }
+
+        try {
+            String url = "https://api.coingecko.com/api/v3/simple/price?ids=" + cryptoId.toLowerCase() + "&vs_currencies=eur";
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setRequestProperty("User-Agent", "Mozilla/5.0");
+            BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line);
+            r.close();
+            JSONObject json = new JSONObject(sb.toString());
+            double price = json.getJSONObject(cryptoId.toLowerCase()).getDouble("eur");
+            priceCache.savePrice(cryptoId, price);
+            return price;
+        } catch (Exception e) {
+            Log.e(TAG, "Erro Crypto para " + cryptoId, e);
+            return 0.0;
+        }
+    }
+
+    private double getStockPrice(String stockTicker) {
+        Log.d(TAG, "Buscando o preço da ação para: " + stockTicker + " (não implementado)");
+        return 0.0;
+    }
+
+    private double parsePrice(String value) {
+        if (value == null || value.isEmpty()) return 0.0;
+        String cleaned = value.replaceAll("[^0-9,.]", "").replace(",", ".");
+        try {
+            return Double.parseDouble(cleaned);
+        } catch (Exception e) {
+            return 0.0;
         }
     }
 }
