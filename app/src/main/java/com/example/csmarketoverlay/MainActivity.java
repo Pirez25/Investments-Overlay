@@ -17,6 +17,7 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.color.DynamicColors;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -49,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean overlayAtivo = false;
     private PriceCache priceCache;
 
+
     private final BroadcastReceiver inventoryUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -63,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
         setContentView(R.layout.activity_main);
 
         invPriceTextView = findViewById(R.id.invprice);

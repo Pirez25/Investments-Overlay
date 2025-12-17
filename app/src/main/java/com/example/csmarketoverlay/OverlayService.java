@@ -202,7 +202,7 @@ public class OverlayService extends Service {
         }
 
         Notification n = new Notification.Builder(this, channelId)
-                .setContentTitle("CS Market Overlay")
+                .setContentTitle("Overlay active")
                 .setContentText("Steam • Bitcoin • Tesla")
                 .setSmallIcon(android.R.drawable.ic_menu_view)
                 .setOngoing(true)

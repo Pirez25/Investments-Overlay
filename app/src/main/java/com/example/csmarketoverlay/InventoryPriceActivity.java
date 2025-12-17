@@ -17,6 +17,7 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.color.DynamicColors;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -48,6 +49,7 @@ public class InventoryPriceActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
         setContentView(R.layout.activity_inventory_price);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
