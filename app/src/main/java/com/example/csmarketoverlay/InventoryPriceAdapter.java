@@ -10,14 +10,18 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
 
+// O adaptador para a lista de preços do inventário.
 public class InventoryPriceAdapter extends RecyclerView.Adapter<InventoryPriceAdapter.ViewHolder> {
 
+    // A lista de itens do inventário.
     private final List<InventoryItem> inventoryItems;
 
+    // Construtor da classe.
     public InventoryPriceAdapter(List<InventoryItem> inventoryItems) {
         this.inventoryItems = inventoryItems;
     }
 
+    // Este método é chamado quando um novo item da lista é criado.
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -25,6 +29,7 @@ public class InventoryPriceAdapter extends RecyclerView.Adapter<InventoryPriceAd
         return new ViewHolder(view);
     }
 
+    // Este método é chamado para associar os dados de um item a um item da lista.
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         InventoryItem item = inventoryItems.get(position);
@@ -34,11 +39,13 @@ public class InventoryPriceAdapter extends RecyclerView.Adapter<InventoryPriceAd
         holder.itemPrice.setText(String.format("%.2f€", item.getPrice() * item.getQuantity()));
     }
 
+    // Devolve o número de itens na lista.
     @Override
     public int getItemCount() {
         return inventoryItems.size();
     }
 
+    // A classe que representa cada item da lista.
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView itemType, itemName, itemQuantity, itemPrice;
 

@@ -33,84 +33,99 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+// A tela principal da aplicação.
 public class MainActivity extends AppCompatActivity {
 
+    // Etiqueta para os logs.
     private static final String TAG = "MainActivity";
 
+    // Handler para executar tarefas na thread principal.
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    // Objeto para aceder aos dados guardados no dispositivo.
     private SharedPreferences prefs;
+    // Listas e mapas para guardar os dados do inventário.
     private final List<String> itemNames = new ArrayList<>();
     private final Map<String, Double> quantities = new HashMap<>();
     private final Map<String, String> itemTypes = new HashMap<>();
     private final Map<String, String> customNames = new HashMap<>();
 
+    // Elementos da interface.
     private TextView invPriceTextView;
     private Button btnToggle;
     private boolean overlayAtivo = false;
     private PriceCache priceCache;
 
-
+    // Receiver para ouvir as atualizações do inventário.
     private final BroadcastReceiver inventoryUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            loadInventory();
+            loadInventory(); // Carrega o inventário.
             if (overlayAtivo) {
-                updatePrices();
+                updatePrices(); // Atualiza os preços se o overlay estiver ativo.
             }
         }
     };
 
-    @SuppressLint("MissingInflatedId")
+    // Este mét0do é chamado quando a atividade é criada.
+    @SuppressLint({"MissingInflatedId", "UnspecifiedRegisterReceiverFlag"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
-        setContentView(R.layout.activity_main);
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication()); // Aplica as cores dinâmicas.
+        setContentView(R.layout.activity_main); // Define o layout da atividade.
 
+        // Inicializa os elementos da interface.
         invPriceTextView = findViewById(R.id.invprice);
         btnToggle = findViewById(R.id.btnToggle);
         Button btnManageInventory = findViewById(R.id.btnManageInventory);
 
+        // Inicializa os objetos para aceder aos dados guardados.
         prefs = getSharedPreferences("CSOverlayPrefs", MODE_PRIVATE);
         priceCache = new PriceCache(this);
 
+        // Carrega o inventário.
         loadInventory();
 
+        // Define as ações dos botões.
         btnManageInventory.setOnClickListener(v -> startActivity(new Intent(this, InventoryPriceActivity.class)));
         btnToggle.setOnClickListener(v -> toggleOverlay());
 
+        // Regista o receiver para ouvir as atualizações do inventário.
         registerReceiver(inventoryUpdateReceiver, new IntentFilter("INVENTORY_UPDATED"));
     }
 
+    // Este método é chamado quando a atividade volta a ser visível.
     @Override
     protected void onResume() {
         super.onResume();
-        loadInventory();
-        overlayAtivo = OverlayService.isRunning();
-        updateButtonText();
+        loadInventory(); // Carrega o inventário.
+        overlayAtivo = OverlayService.isRunning(); // Verifica se o overlay está a correr.
+        updateButtonText(); // Atualiza o texto do botão.
         if (overlayAtivo) {
-            updatePrices();
+            updatePrices(); // Atualiza os preços se o overlay estiver ativo.
         }
     }
 
+    // Este método é chamado quando a atividade é destruída.
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(inventoryUpdateReceiver);
+        unregisterReceiver(inventoryUpdateReceiver); // Remove o registo do receiver.
     }
 
+    // Carrega o inventário a partir dos dados guardados.
     private void loadInventory() {
         itemNames.clear();
         quantities.clear();
         itemTypes.clear();
         customNames.clear();
         String data = prefs.getString("items", "");
-        if (data.isEmpty()) {
+        if (data.isEmpty()) { // Se não houver dados, adiciona alguns itens de exemplo.
             addItem("Steam", "Gallery Case", "", 203.0);
             addItem("Steam", "CS20 Case", "", 254.0);
             addItem("Steam", "Dreams & Nightmares Case", "", 102.0);
-        } else {
+        } else { // Se houver dados, carrega-os.
             for (String s : data.split(";")) {
                 if (s.contains(":")) {
                     String[] p = s.split(":");
@@ -126,6 +141,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Guarda o inventário nos dados guardados.
     private void saveInventory() {
         StringBuilder sb = new StringBuilder();
         List<String> itemNamesSnapshot;
@@ -141,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
         prefs.edit().putString("items", sb.toString()).apply();
     }
 
+    // Adiciona um item ao inventário.
     private void addItem(String type, String name, String customName, double qty) {
         if (!itemNames.contains(name)) {
              itemNames.add(name);
@@ -151,6 +168,7 @@ public class MainActivity extends AppCompatActivity {
         saveInventory();
     }
 
+    // Ativa ou desativa o overlay.
     private void toggleOverlay() {
         if (overlayAtivo) {
             stopService(new Intent(this, OverlayService.class));
@@ -163,10 +181,12 @@ public class MainActivity extends AppCompatActivity {
         updateButtonText();
     }
 
+    // Atualiza o texto do botão do overlay.
     private void updateButtonText() {
         btnToggle.setText(overlayAtivo ? R.string.close_overlay : R.string.open_overlay);
     }
 
+    // Inicia o overlay, pedindo permissão se necessário.
     private void startOverlayWithPermission() {
         if (!Settings.canDrawOverlays(this)) {
             startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
@@ -176,6 +196,7 @@ public class MainActivity extends AppCompatActivity {
         handler.postDelayed(this::updatePrices, 600);
     }
 
+    // Atualiza os preços dos itens.
     private void updatePrices() {
         ApiRequestExecutor.getInstance().execute(() -> {
             Map<String, String> itemTypesSnapshot;
@@ -227,6 +248,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // Obtém o preço de um item da Steam.
     private double getSteamPrice(String item) {
         double cachedPrice = priceCache.getPrice(item);
         if (cachedPrice != -1) {
@@ -253,6 +275,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Obtém o preço de uma criptomoeda.
     private double getCryptoPrice(String cryptoId) {
         double cachedPrice = priceCache.getPrice(cryptoId);
         if (cachedPrice != -1) {
@@ -278,11 +301,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Obtém o preço de uma ação.
     private double getStockPrice(String stockTicker) {
         Log.d(TAG, "Buscando o preço da ação para: " + stockTicker + " (não implementado)");
         return 0.0;
     }
 
+    // Converte um texto para um número decimal.
     private double parsePrice(String value) {
         if (value == null || value.isEmpty()) return 0.0;
         String cleaned = value.replaceAll("[^0-9,.]", "").replace(",", ".");

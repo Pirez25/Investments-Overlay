@@ -28,23 +28,29 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+// O serviço que corre em fundo para mostrar o overlay.
 public class OverlayService extends Service {
 
+    // Elementos da interface do overlay.
     private WindowManager windowManager;
     private View overlayView;
     private TextView overlayText;
     private WindowManager.LayoutParams params;
 
+    // Mapas para guardar os dados do inventário.
     private Map<String, Double> itemPrices = new HashMap<>();
     private Map<String, String> itemTypes = new HashMap<>();
     private Map<String, String> customNames = new HashMap<>();
 
+    // Variável para saber se o serviço está a correr.
     private static boolean isRunning = false;
 
+    // Método para verificar se o serviço está a correr.
     public static boolean isRunning() {
         return isRunning;
     }
 
+    // Receiver para ouvir as atualizações de dados.
     private final BroadcastReceiver overlayReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -52,26 +58,31 @@ public class OverlayService extends Service {
 
             String action = intent.getAction();
 
+            // Se a ação for para atualizar os dados, atualiza os mapas e o overlay.
             if ("UPDATE_OVERLAY_DATA".equals(action)) {
                 itemPrices = (Map<String, Double>) intent.getSerializableExtra("itemPrices");
                 itemTypes = (Map<String, String>) intent.getSerializableExtra("itemTypes");
                 customNames = (Map<String, String>) intent.getSerializableExtra("customNames");
-                refreshOverlay();
+                refreshOverlay(); // Atualiza o texto do overlay.
             }
         }
     };
 
+    // Este método é chamado quando o serviço é iniciado.
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
+            // Remove o overlay antigo se ele existir.
             if (overlayView != null && windowManager != null) {
                 try { windowManager.removeViewImmediate(overlayView); } catch (Exception ignored) {}
                 overlayView = null;
             }
 
+            // Cria o overlay.
             createOverlay();
 
+            // Regista o receiver para ouvir as atualizações de dados.
             IntentFilter filter = new IntentFilter("UPDATE_OVERLAY_DATA");
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -80,19 +91,22 @@ public class OverlayService extends Service {
                 registerReceiver(overlayReceiver, filter);
             }
 
+            // Marca o serviço como a correr.
             isRunning = true;
 
         } catch (Exception e) {
             Log.e("OverlayService", "Erro ao iniciar", e);
-            stopSelf();
+            stopSelf(); // Para o serviço se houver um erro.
         }
-        return START_STICKY;
+        return START_STICKY; // O serviço é reiniciado se for morto pelo sistema.
     }
 
+    // Cria e mostra o overlay no ecrã.
     private void createOverlay() {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         if (windowManager == null) return;
 
+        // Infla o layout do overlay.
         overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
         overlayText = overlayView.findViewById(R.id.textOverlay);
 
@@ -102,14 +116,17 @@ public class OverlayService extends Service {
             return;
         }
 
+        // Configura o aspeto do overlay.
         overlayText.setText("A carregar...");
         overlayText.setPadding(18, 14, 18, 14);
         overlayText.setTextColor(0xFFFFFFFF);
 
+        // Define o tipo de janela do overlay.
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
+        // Configura os parâmetros do overlay.
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -123,11 +140,13 @@ public class OverlayService extends Service {
         params.x = 0;
         params.y = 0;
 
+        // Adiciona o overlay à janela.
         windowManager.addView(overlayView, params);
-        makeDraggable();
-        startForegroundNotification();
+        makeDraggable(); // Torna o overlay arrastável.
+        startForegroundNotification(); // Mostra uma notificação para o serviço.
     }
 
+    // Atualiza o texto do overlay.
     private void refreshOverlay() {
         if (overlayText == null) return;
 
@@ -151,13 +170,16 @@ public class OverlayService extends Service {
             }
         }
 
+        // Remove a última quebra de linha.
         while (sb.length() > 0 && sb.charAt(sb.length() - 1) == '\n') {
             sb.setLength(sb.length() - 1);
         }
 
+        // Atualiza o texto do overlay na thread principal.
         overlayText.post(() -> overlayText.setText(sb.toString()));
     }
 
+    // Torna o overlay arrastável.
     private void makeDraggable() {
         if (overlayView == null) return;
 
@@ -194,6 +216,7 @@ public class OverlayService extends Service {
         });
     }
 
+    // Mostra uma notificação para o serviço.
     private void startForegroundNotification() {
         String channelId = "overlay_channel";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -211,6 +234,7 @@ public class OverlayService extends Service {
         startForeground(1, n);
     }
 
+    // Este método é chamado quando o serviço é destruído.
     @Override
     public void onDestroy() {
         super.onDestroy();

@@ -24,32 +24,39 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+// A tela de gestão do inventário.
 public class InventoryActivity extends AppCompatActivity {
 
+    // Elementos da interface.
     private RecyclerView recyclerView;
     private InventoryAdapter adapter;
     private EditText etName, etQty, etCustomName;
     private Button btnAdd;
     private Spinner itemTypeSpinner;
 
+    // Listas e mapas para guardar os dados do inventário.
     private List<String> itemNames = new ArrayList<>();
     private Map<String, Double> quantities = new HashMap<>();
     private Map<String, String> itemTypes = new HashMap<>();
     private Map<String, String> customNames = new HashMap<>();
     private SharedPreferences prefs;
 
+    // Este método é chamado quando a atividade é criada.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
-        setContentView(R.layout.activity_inventory);
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication()); // Aplica as cores dinâmicas.
+        setContentView(R.layout.activity_inventory); // Define o layout da atividade.
 
+        // Configura a barra de ferramentas.
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
+        // Inicializa o objeto para aceder aos dados guardados.
         prefs = getSharedPreferences("CSOverlayPrefs", MODE_PRIVATE);
 
+        // Inicializa os elementos da interface.
         recyclerView = findViewById(R.id.recyclerInventory);
         etName = findViewById(R.id.etItemName);
         etQty = findViewById(R.id.etItemQty);
@@ -57,40 +64,46 @@ public class InventoryActivity extends AppCompatActivity {
         btnAdd = findViewById(R.id.btnAdd);
         itemTypeSpinner = findViewById(R.id.itemTypeSpinner);
 
+        // Configura o seletor de tipo de item.
         ArrayAdapter<CharSequence> spinnerAdapter = ArrayAdapter.createFromResource(this,
                 R.array.item_types, android.R.layout.simple_spinner_item);
         spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         itemTypeSpinner.setAdapter(spinnerAdapter);
 
+        // Configura a lista de itens.
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new InventoryAdapter(itemNames, quantities, this::saveAndUpdate);
         recyclerView.setAdapter(adapter);
 
+        // Carrega o inventário.
         loadInventory();
 
+        // Define a ação do botão de adicionar.
         btnAdd.setOnClickListener(v -> addNewItem());
     }
 
+    // Este método é chamado quando um item do menu é selecionado.
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
-            finish();
+            finish(); // Fecha a atividade quando a seta de retrocesso é pressionada.
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
+    // Carrega o inventário a partir dos dados guardados.
     private void loadInventory() {
         itemNames.clear();
         quantities.clear();
         itemTypes.clear();
         customNames.clear();
         String data = prefs.getString("items", "");
-        if (data.isEmpty()) {
+        if (data.isEmpty()) { // Se não houver dados, adiciona alguns itens de exemplo.
             addItem("Steam", "Gallery Case", "", 203.0);
             addItem("Steam", "CS20 Case", "", 254.0);
             addItem("Steam", "Dreams & Nightmares Case", "", 102.0);
-        } else {
+        } else { // Se houver dados, carrega-os.
             String[] items = data.split(";");
             for (String s : items) {
                 if (s.contains(":")) {
@@ -108,6 +121,7 @@ public class InventoryActivity extends AppCompatActivity {
         adapter.notifyDataSetChanged();
     }
 
+    // Adiciona um novo item ao inventário.
     private void addNewItem() {
         String name = etName.getText().toString().trim();
         String customName = etCustomName.getText().toString().trim();
@@ -125,6 +139,7 @@ public class InventoryActivity extends AppCompatActivity {
         etQty.setText("");
     }
 
+    // Adiciona um item às listas de dados e guarda o inventário.
     private void addItem(String type, String name, String customName, double qty) {
         if (!itemNames.contains(name)) {
             itemNames.add(name);
@@ -135,6 +150,7 @@ public class InventoryActivity extends AppCompatActivity {
         saveAndUpdate();
     }
 
+    // Remove um item do inventário.
     public void removeItem(String name) {
         itemNames.remove(name);
         quantities.remove(name);
@@ -143,6 +159,7 @@ public class InventoryActivity extends AppCompatActivity {
         saveAndUpdate();
     }
 
+    // Mostra um diálogo para editar a quantidade de um item.
     public void showEditDialog(String name) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(R.string.edit_quantity);
@@ -170,11 +187,13 @@ public class InventoryActivity extends AppCompatActivity {
         builder.show();
     }
 
+    // Atualiza a quantidade de um item.
     public void updateItemQuantity(String name, double newQty) {
         quantities.put(name, newQty);
         saveAndUpdate();
     }
 
+    // Guarda o inventário e notifica o resto da aplicação.
     private void saveAndUpdate() {
         StringBuilder sb = new StringBuilder();
         for (String name : itemNames) {
@@ -183,7 +202,7 @@ public class InventoryActivity extends AppCompatActivity {
         prefs.edit().putString("items", sb.toString()).apply();
         adapter.notifyDataSetChanged();
 
-        // Avisa a MainActivity
+        // Envia uma mensagem para a MainActivity para que ela atualize o overlay.
         sendBroadcast(new Intent("INVENTORY_UPDATED"));
     }
 }
