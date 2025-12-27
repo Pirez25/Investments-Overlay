@@ -1,7 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string-array name="item_types">
-        <item>Crypto</item>
-        <item>Steam</item>
-        <item>Stock</item>
-    </string-array>
+    <!-- Este ficheiro foi esvaziado para resolver um conflito de recursos duplicados. -->
+    <!-- O array 'item_types' foi movido para strings.xml -->
 </resources>

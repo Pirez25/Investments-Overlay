@@ -1,10 +1,17 @@
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/textOverlay"
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:background="#80000000"
-    android:includeFontPadding="false"
-    android:padding="18dp"
-    android:text="Loading..."
-    android:textColor="#FFFFFF"
-    android:textSize="14sp" />
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/textOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/overlay_loading"
+        android:textColor="@android:color/white"
+        android:textSize="14sp" />
+
+</LinearLayout>

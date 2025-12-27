@@ -3,12 +3,12 @@ package com.example.csmarketoverlay;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// Esta classe gere a execução de pedidos à API, garantindo que são feitos um de cada vez.
 public class ApiRequestExecutor {
-    // Cria um executor que usa uma única thread. Isto garante que os pedidos são executados em série.
-    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    // Devolve a instância do executor.
+    // Cria um executor que reutiliza threads e cria novas conforme necessário.
+    // Isto permite que vários pedidos à API sejam executados em paralelo.
+    private static final ExecutorService executor = Executors.newCachedThreadPool();
+
     public static ExecutorService getInstance() {
         return executor;
     }

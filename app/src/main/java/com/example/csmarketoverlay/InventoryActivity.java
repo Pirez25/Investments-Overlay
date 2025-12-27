@@ -1,17 +1,25 @@
 package com.example.csmarketoverlay;
 
-import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.AssetManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -19,154 +27,188 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.color.DynamicColors;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-// A tela de gestão do inventário.
-public class InventoryActivity extends AppCompatActivity {
+public class InventoryActivity extends AppCompatActivity implements InventoryAdapter.OnItemInteractionListener {
 
-    // Elementos da interface.
-    private RecyclerView recyclerView;
     private InventoryAdapter adapter;
-    private EditText etName, etQty, etCustomName;
-    private Button btnAdd;
+    private AutoCompleteTextView etItemName;
+    private EditText etQty, etCustomName;
     private Spinner itemTypeSpinner;
 
-    // Listas e mapas para guardar os dados do inventário.
-    private List<String> itemNames = new ArrayList<>();
-    private Map<String, Double> quantities = new HashMap<>();
-    private Map<String, String> itemTypes = new HashMap<>();
-    private Map<String, String> customNames = new HashMap<>();
+    private final List<InventoryItem> inventoryItems = new ArrayList<>();
     private SharedPreferences prefs;
+    private AppDatabase db;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
-    // Este método é chamado quando a atividade é criada.
+    private List<String> csgoItemsSuggestions = new ArrayList<>();
+    private List<String> cryptoIdsSuggestions = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        DynamicColors.applyToActivitiesIfAvailable(this.getApplication()); // Aplica as cores dinâmicas.
-        setContentView(R.layout.activity_inventory); // Define o layout da atividade.
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
+        setContentView(R.layout.activity_inventory);
 
-        // Configura a barra de ferramentas.
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayHomeAsUpEnabled(true);
+            actionBar.setTitle(R.string.inventory_title);
+        }
 
-        // Inicializa o objeto para aceder aos dados guardados.
         prefs = getSharedPreferences("CSOverlayPrefs", MODE_PRIVATE);
+        db = AppDatabase.getDatabase(this);
 
-        // Inicializa os elementos da interface.
-        recyclerView = findViewById(R.id.recyclerInventory);
-        etName = findViewById(R.id.etItemName);
+        etItemName = findViewById(R.id.etItemName);
         etQty = findViewById(R.id.etItemQty);
         etCustomName = findViewById(R.id.etCustomName);
-        btnAdd = findViewById(R.id.btnAdd);
+        Button btnAdd = findViewById(R.id.btnAdd);
         itemTypeSpinner = findViewById(R.id.itemTypeSpinner);
 
-        // Configura o seletor de tipo de item.
+        loadSuggestionData();
+        setupSpinnerAndSuggestions();
+        setupRecyclerView();
+
+        ApiRequestExecutor.getInstance().execute(this::migrateFromSharedPreferences);
+
+        btnAdd.setOnClickListener(v -> addNewItem());
+    }
+
+    private void loadSuggestionData() {
+        try {
+            AssetManager assetManager = getAssets();
+            InputStream is = assetManager.open("csgo_items.json");
+            int size = is.available();
+            byte[] buffer = new byte[size];
+            is.read(buffer);
+            is.close();
+            String json = new String(buffer, StandardCharsets.UTF_8);
+            JSONObject obj = new JSONObject(json);
+
+            JSONArray csgoArray = obj.getJSONArray("csgo_items");
+            for (int i = 0; i < csgoArray.length(); i++) {
+                csgoItemsSuggestions.add(csgoArray.getString(i));
+            }
+
+            JSONArray cryptoArray = obj.getJSONArray("crypto_ids");
+            for (int i = 0; i < cryptoArray.length(); i++) {
+                cryptoIdsSuggestions.add(cryptoArray.getString(i));
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private void setupSpinnerAndSuggestions() {
         ArrayAdapter<CharSequence> spinnerAdapter = ArrayAdapter.createFromResource(this,
                 R.array.item_types, android.R.layout.simple_spinner_item);
         spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         itemTypeSpinner.setAdapter(spinnerAdapter);
 
-        // Configura a lista de itens.
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new InventoryAdapter(itemNames, quantities, this::saveAndUpdate);
-        recyclerView.setAdapter(adapter);
-
-        // Carrega o inventário.
-        loadInventory();
-
-        // Define a ação do botão de adicionar.
-        btnAdd.setOnClickListener(v -> addNewItem());
-    }
-
-    // Este método é chamado quando um item do menu é selecionado.
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish(); // Fecha a atividade quando a seta de retrocesso é pressionada.
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    // Carrega o inventário a partir dos dados guardados.
-    private void loadInventory() {
-        itemNames.clear();
-        quantities.clear();
-        itemTypes.clear();
-        customNames.clear();
-        String data = prefs.getString("items", "");
-        if (data.isEmpty()) { // Se não houver dados, adiciona alguns itens de exemplo.
-            addItem("Steam", "Gallery Case", "", 203.0);
-            addItem("Steam", "CS20 Case", "", 254.0);
-            addItem("Steam", "Dreams & Nightmares Case", "", 102.0);
-        } else { // Se houver dados, carrega-os.
-            String[] items = data.split(";");
-            for (String s : items) {
-                if (s.contains(":")) {
-                    String[] p = s.split(":");
-                    if (p.length == 4) {
-                        addItem(p[0], p[1], p[2], Double.parseDouble(p[3]));
-                    } else if (p.length == 3) {
-                        addItem(p[0], p[1], "", Double.parseDouble(p[2]));
-                    } else if (p.length == 2) {
-                        addItem("Steam", p[0], "", Double.parseDouble(p[1]));
-                    }
-                }
+        itemTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateSuggestions(parent.getItemAtPosition(position).toString());
             }
-        }
-        adapter.notifyDataSetChanged();
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) { }
+        });
+
+        updateSuggestions("Steam");
     }
 
-    // Adiciona um novo item ao inventário.
+    private void updateSuggestions(String type) {
+        List<String> suggestions = type.equals("Crypto") ? cryptoIdsSuggestions : csgoItemsSuggestions;
+        ArrayAdapter<String> suggestionAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, suggestions);
+        etItemName.setAdapter(suggestionAdapter);
+    }
+
+    private void setupRecyclerView() {
+        RecyclerView recyclerView = findViewById(R.id.recyclerInventory);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new InventoryAdapter(inventoryItems, this);
+        recyclerView.setAdapter(adapter);
+    }
+
+    private void loadInventoryFromDb() {
+        ApiRequestExecutor.getInstance().execute(() -> {
+            List<InventoryItem> itemsFromDb = db.inventoryDao().getAll();
+            handler.post(() -> {
+                inventoryItems.clear();
+                inventoryItems.addAll(itemsFromDb);
+                adapter.notifyDataSetChanged();
+                sendInventoryUpdateBroadcast();
+            });
+        });
+    }
+
     private void addNewItem() {
-        String name = etName.getText().toString().trim();
+        String name = etItemName.getText().toString().trim();
         String customName = etCustomName.getText().toString().trim();
         String qtyStr = etQty.getText().toString().trim();
         String type = itemTypeSpinner.getSelectedItem().toString();
 
         if (name.isEmpty() || qtyStr.isEmpty()) {
-            Toast.makeText(this, R.string.fill_everything, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.fill_everything_toast, Toast.LENGTH_SHORT).show();
             return;
         }
-        double qty = Double.parseDouble(qtyStr);
-        addItem(type, name, customName, qty);
-        etName.setText("");
-        etCustomName.setText("");
-        etQty.setText("");
+
+        ApiRequestExecutor.getInstance().execute(() -> {
+            if (db.inventoryDao().getItemByName(name) != null) {
+                handler.post(() -> Toast.makeText(this, R.string.item_exists_toast, Toast.LENGTH_SHORT).show());
+                return;
+            }
+
+            double qty = Double.parseDouble(qtyStr);
+            InventoryItem newItem = new InventoryItem(name, qty, 0, type, customName);
+            db.inventoryDao().insertAll(newItem);
+            
+            handler.post(() -> {
+                inventoryItems.add(newItem);
+                Collections.sort(inventoryItems, (o1, o2) -> o1.getName().compareTo(o2.getName()));
+                adapter.notifyDataSetChanged(); 
+                etItemName.setText("");
+                etCustomName.setText("");
+                etQty.setText("");
+                sendInventoryUpdateBroadcast();
+            });
+        });
     }
 
-    // Adiciona um item às listas de dados e guarda o inventário.
-    private void addItem(String type, String name, String customName, double qty) {
-        if (!itemNames.contains(name)) {
-            itemNames.add(name);
+    @Override
+    public void onRemoveItem(InventoryItem item) {
+        int position = inventoryItems.indexOf(item);
+        if (position != -1) {
+            inventoryItems.remove(position);
+            adapter.notifyItemRemoved(position);
+            ApiRequestExecutor.getInstance().execute(() -> {
+                db.inventoryDao().deleteByName(item.getName());
+                sendInventoryUpdateBroadcast();
+            });
         }
-        quantities.put(name, qty);
-        itemTypes.put(name, type);
-        customNames.put(name, customName);
-        saveAndUpdate();
     }
 
-    // Remove um item do inventário.
-    public void removeItem(String name) {
-        itemNames.remove(name);
-        quantities.remove(name);
-        itemTypes.remove(name);
-        customNames.remove(name);
-        saveAndUpdate();
+    @Override
+    public void onEditItem(InventoryItem item) {
+        showEditDialog(item);
     }
 
-    // Mostra um diálogo para editar a quantidade de um item.
-    public void showEditDialog(String name) {
+    public void showEditDialog(InventoryItem item) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(R.string.edit_quantity);
+        builder.setTitle(R.string.edit_quantity_title);
 
         final EditText input = new EditText(this);
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        input.setText(String.valueOf(quantities.get(name)));
+        input.setText(String.valueOf(item.getQuantity()));
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -179,30 +221,62 @@ public class InventoryActivity extends AppCompatActivity {
             String newQtyStr = input.getText().toString();
             if (!newQtyStr.isEmpty()) {
                 double newQty = Double.parseDouble(newQtyStr);
-                updateItemQuantity(name, newQty);
+                int position = inventoryItems.indexOf(item);
+                if(position != -1){
+                    InventoryItem updatedItem = new InventoryItem(item.getName(), newQty, item.getPrice(), item.getType(), item.getCustomName());
+                    inventoryItems.set(position, updatedItem);
+                    adapter.notifyItemChanged(position);
+                    ApiRequestExecutor.getInstance().execute(() -> {
+                        db.inventoryDao().updateQuantity(item.getName(), newQty);
+                        sendInventoryUpdateBroadcast();
+                    });
+                }
             }
         });
         builder.setNegativeButton(R.string.cancel, (dialog, which) -> dialog.cancel());
-
         builder.show();
     }
 
-    // Atualiza a quantidade de um item.
-    public void updateItemQuantity(String name, double newQty) {
-        quantities.put(name, newQty);
-        saveAndUpdate();
+    private void sendInventoryUpdateBroadcast() {
+        sendBroadcast(new Intent("INVENTORY_UPDATED"));
     }
 
-    // Guarda o inventário e notifica o resto da aplicação.
-    private void saveAndUpdate() {
-        StringBuilder sb = new StringBuilder();
-        for (String name : itemNames) {
-            sb.append(itemTypes.get(name)).append(":").append(name).append(":").append(customNames.get(name)).append(":").append(quantities.get(name)).append(";");
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
         }
-        prefs.edit().putString("items", sb.toString()).apply();
-        adapter.notifyDataSetChanged();
+        return super.onOptionsItemSelected(item);
+    }
 
-        // Envia uma mensagem para a MainActivity para que ela atualize o overlay.
-        sendBroadcast(new Intent("INVENTORY_UPDATED"));
+    private void migrateFromSharedPreferences() {
+        boolean migrationDone = prefs.getBoolean("room_migration_done", false);
+        if (!migrationDone) {
+            String oldData = prefs.getString("items", "");
+            if (!oldData.isEmpty()) {
+                List<InventoryItem> itemsToMigrate = new ArrayList<>();
+                String[] items = oldData.split(";");
+                for (String s : items) {
+                    if (s.contains(":")) {
+                        try {
+                            String[] p = s.split(":");
+                             if (p.length == 4) {
+                                itemsToMigrate.add(new InventoryItem(p[1], Double.parseDouble(p[3]), 0, p[0], p[2]));
+                            } else if (p.length == 3) {
+                                itemsToMigrate.add(new InventoryItem(p[1], Double.parseDouble(p[2]), 0, p[0], ""));
+                            } else if (p.length == 2) {
+                                itemsToMigrate.add(new InventoryItem(p[0], Double.parseDouble(p[1]), 0, "Steam", ""));
+                            }
+                        } catch (Exception e) {
+                            // Ignora
+                        }
+                    }
+                }
+                db.inventoryDao().insertAll(itemsToMigrate.toArray(new InventoryItem[0]));
+            }
+            prefs.edit().putBoolean("room_migration_done", true).apply();
+        }
+        loadInventoryFromDb();
     }
 }

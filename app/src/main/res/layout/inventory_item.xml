@@ -1,28 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="8dp"
+    android:background="#FF3A3A3A"
+    android:padding="12dp"
     android:layout_marginBottom="8dp">
 
     <TextView
         android:id="@+id/itemName"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:textColor="#FFFFFF" />
-
-    <TextView
-        android:id="@+id/itemQuantity"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#FFFFFF" />
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true"
+        android:layout_toStartOf="@+id/right_section"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp" />
 
-    <Button
-        android:id="@+id/removeItemButton"
+    <LinearLayout
+        android:id="@+id/right_section"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/remove" />
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-</LinearLayout>
+        <TextView
+            android:id="@+id/itemQuantity"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <ImageView
+            android:id="@+id/edit_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="8dp"
+            android:src="@android:drawable/ic_menu_edit"
+            android:contentDescription="Editar Quantidade" />
+
+        <Button
+            android:id="@+id/removeItemButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="#E53935"
+            android:text="@string/remove" />
+
+    </LinearLayout>
+
+</RelativeLayout>

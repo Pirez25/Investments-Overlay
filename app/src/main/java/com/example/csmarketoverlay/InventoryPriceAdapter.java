@@ -6,22 +6,21 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
-// O adaptador para a lista de preços do inventário.
-public class InventoryPriceAdapter extends RecyclerView.Adapter<InventoryPriceAdapter.ViewHolder> {
+// Adaptador otimizado para a lista de preços do inventário usando ListAdapter.
+public class InventoryPriceAdapter extends ListAdapter<InventoryItem, InventoryPriceAdapter.ViewHolder> {
 
-    // A lista de itens do inventário.
-    private final List<InventoryItem> inventoryItems;
-
-    // Construtor da classe.
-    public InventoryPriceAdapter(List<InventoryItem> inventoryItems) {
-        this.inventoryItems = inventoryItems;
+    // Construtor. Passa o DIFF_CALLBACK para o ListAdapter saber como comparar itens.
+    public InventoryPriceAdapter() {
+        super(DIFF_CALLBACK);
     }
 
-    // Este método é chamado quando um novo item da lista é criado.
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -29,23 +28,16 @@ public class InventoryPriceAdapter extends RecyclerView.Adapter<InventoryPriceAd
         return new ViewHolder(view);
     }
 
-    // Este método é chamado para associar os dados de um item a um item da lista.
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        InventoryItem item = inventoryItems.get(position);
-        holder.itemType.setText(item.getType());
-        holder.itemName.setText(item.getName());
-        holder.itemQuantity.setText("x" + item.getQuantity());
-        holder.itemPrice.setText(String.format("%.2f€", item.getPrice() * item.getQuantity()));
+        // Usa getItem() do ListAdapter, que é mais seguro.
+        InventoryItem item = getItem(position);
+        if (item != null) {
+            holder.bind(item);
+        }
     }
 
-    // Devolve o número de itens na lista.
-    @Override
-    public int getItemCount() {
-        return inventoryItems.size();
-    }
-
-    // A classe que representa cada item da lista.
+    // ViewHolder que representa a UI de cada item na lista.
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView itemType, itemName, itemQuantity, itemPrice;
 
@@ -56,5 +48,30 @@ public class InventoryPriceAdapter extends RecyclerView.Adapter<InventoryPriceAd
             itemQuantity = itemView.findViewById(R.id.itemQuantity);
             itemPrice = itemView.findViewById(R.id.itemPrice);
         }
+
+        // Associa os dados do item à UI.
+        public void bind(InventoryItem item) {
+            itemType.setText(item.getType());
+            itemName.setText(item.getName());
+            itemQuantity.setText(String.format(Locale.US, "x%.0f", item.getQuantity()));
+            itemPrice.setText(String.format(Locale.US, "%.2f€", item.getPrice() * item.getQuantity()));
+        }
     }
+
+    // O callback que o ListAdapter usa para detetar mudanças na lista de forma eficiente.
+    private static final DiffUtil.ItemCallback<InventoryItem> DIFF_CALLBACK = new DiffUtil.ItemCallback<InventoryItem>() {
+        @Override
+        public boolean areItemsTheSame(@NonNull InventoryItem oldItem, @NonNull InventoryItem newItem) {
+            // O nome é o nosso identificador único. Se for o mesmo, o item é o mesmo.
+            return Objects.equals(oldItem.getName(), newItem.getName());
+        }
+
+        @Override
+        public boolean areContentsTheSame(@NonNull InventoryItem oldItem, @NonNull InventoryItem newItem) {
+            // Agora verifica se o conteúdo mudou para decidir se precisa de redesenhar o item.
+            return oldItem.getQuantity() == newItem.getQuantity()
+                    && oldItem.getPrice() == newItem.getPrice()
+                    && Objects.equals(oldItem.getType(), newItem.getType());
+        }
+    };
 }

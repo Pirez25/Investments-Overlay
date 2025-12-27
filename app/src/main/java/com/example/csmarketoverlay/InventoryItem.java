@@ -1,46 +1,67 @@
 package com.example.csmarketoverlay;
 
-// Esta classe representa um item no inventário.
+import androidx.annotation.NonNull;
+import androidx.room.ColumnInfo;
+import androidx.room.Entity;
+import androidx.room.PrimaryKey;
+
+// Define a tabela "inventory_items" para a base de dados Room.
+@Entity(tableName = "inventory_items")
 public class InventoryItem {
-    // O nome do item.
+
+    // O nome completo do item (ex: "AK-47 | Redline (Field-Tested)") é a chave primária.
+    @PrimaryKey
+    @NonNull
+    @ColumnInfo(name = "name")
     private final String name;
-    // A quantidade do item.
+
+    @ColumnInfo(name = "quantity")
     private final double quantity;
-    // O preço do item.
+
+    // O preço não é final, pois é atualizado com frequência.
+    @ColumnInfo(name = "price")
     private double price;
-    // O tipo do item (ex: "Steam", "Crypto", "Stock").
+
+    // O tipo do item (ex: "Steam", "Crypto").
+    @ColumnInfo(name = "type")
     private final String type;
 
-    // Construtor da classe.
-    public InventoryItem(String name, double quantity, double price, String type) {
+    // A alcunha do item, pode ser nula ou vazia.
+    @ColumnInfo(name = "custom_name")
+    private final String customName;
+
+    public InventoryItem(@NonNull String name, double quantity, double price, String type, String customName) {
         this.name = name;
         this.quantity = quantity;
         this.price = price;
         this.type = type;
+        this.customName = customName;
     }
 
-    // Devolve o nome do item.
+    // Getters
+    @NonNull
     public String getName() {
         return name;
     }
 
-    // Devolve a quantidade do item.
     public double getQuantity() {
         return quantity;
     }
 
-    // Devolve o preço do item.
     public double getPrice() {
         return price;
     }
 
-    // Define o preço do item.
-    public void setPrice(double price) {
-        this.price = price;
-    }
-
-    // Devolve o tipo do item.
     public String getType() {
         return type;
+    }
+
+    public String getCustomName() {
+        return customName;
+    }
+
+    // Setter
+    public void setPrice(double price) {
+        this.price = price;
     }
 }

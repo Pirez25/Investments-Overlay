@@ -1,8 +1,14 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
     <style name="Base.Theme.CSMarketoverlay" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/orange_primary</item>
+        <item name="colorPrimaryVariant">@color/orange_primary_dark</item>
+        <item name="colorOnPrimary">@color/black</item> <!-- Texto sobre a cor primária -->
+
+        <item name="colorSecondary">@color/orange_primary</item>
+        <item name="colorSecondaryVariant">@color/orange_primary_dark</item>
+        <item name="colorOnSecondary">@color/black</item> <!-- Texto sobre a cor secundária -->
+
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
     </style>
 
     <style name="Theme.CSMarketoverlay" parent="Base.Theme.CSMarketoverlay" />

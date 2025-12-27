@@ -1,14 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">InvestmentsOverlay</string>
-    <string name="textview_inv">Inventário</string>
-    <string name="showoverlay">Mostrar Overlay</string>
-    <string name="removeoverlay">Remover Overlay</string>
-    <string name="open_overlay">Abrir overlay</string>
-    <string name="close_overlay">Fechar overlay</string>
-    <string name="edit">Editar</string>
-    <string name="remove">Remover</string>
-    <string name="fill_everything">Preenche tudo!</string>
-    <string name="edit_quantity">Editar Quantidade</string>
+    <string name="app_name">Investments Overlay</string>
+
+    <!-- Titles -->
+    <string name="main_title">Total Value</string>
+    <string name="inventory_title">Inventory</string>
+    <string name="prices_title">Inventory Prices</string>
+    <string name="edit_quantity_title">Edit Quantity</string>
+    <string name="hyperos_title">Setup for HyperOS / MIUI</string>
+
+    <!-- Buttons and Actions -->
+    <string name="manage_inventory">Manage Inventory</string>
+    <string name="open_overlay">Open Overlay</string>
+    <string name="close_overlay">Close Overlay</string>
+    <string name="add_button">ADD</string>
     <string name="ok">OK</string>
-    <string name="cancel">Cancelar</string>
+    <string name="cancel">Cancel</string>
+    <string name="remove">Remove</string>
+    <string name="edit">Edit</string>
+    <string name="hyperos_open_settings">Open App Settings</string>
+    <string name="dismiss">Dismiss</string>
+
+    <!-- Hints and Messages -->
+    <string name="item_name_hint">Item name</string>
+    <string name="custom_name_hint">Custom name (nickname)</string>
+    <string name="quantity_hint">Qty</string>
+    <string name="total_label">Total:</string>
+    <string name="item_exists_toast">This item already exists.</string>
+    <string name="fill_everything_toast">Please, fill in the name and quantity.</string>
+    <string name="overlay_permission_needed">Overlay permission is required.</string>
+    <string name="screen_capture_permission_needed">Screen capture permission is required.</string>
+    <string name="hyperos_message">For the overlay to work correctly, please enable Display pop-up windows and Autostart permissions.</string>
+
+    <!-- Overlay -->
+    <string name="overlay_active_title">Overlay Active</string>
+    <string name="overlay_active_content">Monitoring your investments.</string>
+    <string name="overlay_loading">Loading…</string>
+    <string name="overlay_no_nicks">No items with a nickname defined.</string>
+
+    <!-- Item Types -->
+    <string-array name="item_types">
+        <item>Crypto</item>
+        <item>Steam</item>
+    </string-array>
 </resources>

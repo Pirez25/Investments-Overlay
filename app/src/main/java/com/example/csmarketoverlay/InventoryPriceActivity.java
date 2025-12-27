@@ -4,16 +4,18 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.MenuItem;
 import android.widget.Button;
+import android.widget.TextView;
 
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -27,143 +29,139 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
-// A tela que mostra os preços do inventário.
 public class InventoryPriceActivity extends AppCompatActivity {
 
-    // Etiqueta para os logs.
     private static final String TAG = "InventoryPriceActivity";
-    // Elementos da interface.
-    private RecyclerView recyclerView;
     private InventoryPriceAdapter adapter;
-    // Lista de itens do inventário.
-    private final List<InventoryItem> inventoryItems = new ArrayList<>();
-    // Handler para executar tarefas na thread principal.
+    private TextView totalInventoryValueTextView;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    // Objeto para aceder aos dados guardados no dispositivo.
-    private SharedPreferences prefs;
+    private AppDatabase db;
     private PriceCache priceCache;
+    private final List<InventoryItem> inventoryItems = new ArrayList<>();
 
-    // Receiver para ouvir as atualizações do inventário.
     private final BroadcastReceiver inventoryUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            loadInventoryAndPrices(); // Carrega o inventário e os preços.
+            loadInitialDataFromDb();
         }
     };
 
-    // Este método é chamado quando a atividade é criada.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        DynamicColors.applyToActivitiesIfAvailable(this.getApplication()); // Aplica as cores dinâmicas.
-        setContentView(R.layout.activity_inventory_price); // Define o layout da atividade.
+        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
+        setContentView(R.layout.activity_inventory_price);
 
-        // Configura a barra de ferramentas.
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getSupportActionBar().setTitle("Preços do Inventário");
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayHomeAsUpEnabled(true);
+            actionBar.setTitle(R.string.prices_title);
+        }
 
-        // Inicializa os objetos para aceder aos dados guardados.
-        prefs = getSharedPreferences("CSOverlayPrefs", MODE_PRIVATE);
+        db = AppDatabase.getDatabase(this);
         priceCache = new PriceCache(this);
 
-        // Configura a lista de itens.
-        recyclerView = findViewById(R.id.inventoryPriceRecyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new InventoryPriceAdapter(inventoryItems);
-        recyclerView.setAdapter(adapter);
+        totalInventoryValueTextView = findViewById(R.id.totalInventoryValueTextView);
+        setupRecyclerView();
 
-        // Define a ação do botão de editar.
         Button editButton = findViewById(R.id.editButton);
-        editButton.setOnClickListener(v -> {
-            startActivity(new Intent(this, InventoryActivity.class));
-        });
+        editButton.setOnClickListener(v -> startActivity(new Intent(this, InventoryActivity.class)));
 
-        // Carrega o inventário e os preços.
-        loadInventoryAndPrices();
-
-        // Regista o receiver para ouvir as atualizações do inventário.
-        registerReceiver(inventoryUpdateReceiver, new IntentFilter("INVENTORY_UPDATED"));
+        ContextCompat.registerReceiver(this, inventoryUpdateReceiver, new IntentFilter("INVENTORY_UPDATED"), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
-    // Este método é chamado quando um item do menu é selecionado.
+    private void setupRecyclerView() {
+        RecyclerView recyclerView = findViewById(R.id.inventoryPriceRecyclerView);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new InventoryPriceAdapter();
+        recyclerView.setAdapter(adapter);
+    }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
-            finish(); // Fecha a atividade quando a seta de retrocesso é pressionada.
+            finish();
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
-    // Este método é chamado quando a atividade é destruída.
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadInitialDataFromDb();
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(inventoryUpdateReceiver); // Remove o registo do receiver.
+        unregisterReceiver(inventoryUpdateReceiver);
     }
 
-    // Carrega o inventário e os preços a partir dos dados guardados.
-    private void loadInventoryAndPrices() {
+    private void loadInitialDataFromDb() {
         ApiRequestExecutor.getInstance().execute(() -> {
-            List<InventoryItem> tempInventoryItems = new ArrayList<>();
-            String data = prefs.getString("items", "");
-            if (!data.isEmpty()) { // Se houver dados, carrega-os.
-                String[] items = data.split(";");
-                for (String s : items) {
-                    if (s.contains(":")) {
-                        String[] p = s.split(":");
-                        if (p.length == 4) {
-                            tempInventoryItems.add(new InventoryItem(p[1], Double.parseDouble(p[3]), 0.0, p[0]));
-                        } else if (p.length == 3) {
-                            tempInventoryItems.add(new InventoryItem(p[1], Double.parseDouble(p[2]), 0.0, p[0]));
-                        } else if (p.length == 2) {
-                            tempInventoryItems.add(new InventoryItem(p[0], Double.parseDouble(p[1]), 0.0, "Steam"));
-                        }
-                    }
-                }
+            List<InventoryItem> itemsFromDb = db.inventoryDao().getAll();
+            inventoryItems.clear();
+            inventoryItems.addAll(itemsFromDb);
+
+            // Mostra imediatamente a lista com os preços em cache (mesmo que antigos)
+            for (InventoryItem item : inventoryItems) {
+                item.setPrice(priceCache.getAnyPrice(item.getName()));
             }
 
-            // Atualiza a interface com os itens carregados.
-            for (InventoryItem item : tempInventoryItems) {
-                double price = 0;
-                switch (item.getType()) {
-                    case "Steam":
-                        price = getSteamPrice(item.getName());
-                        break;
-                    case "Crypto":
-                        price = getCryptoPrice(item.getName());
-                        break;
-                    case "Stock":
-                        price = getStockPrice(item.getName());
-                        break;
-                }
-                item.setPrice(price);
-            }
-
-            // Atualiza a lista de itens na thread principal.
             handler.post(() -> {
-                synchronized (inventoryItems) {
-                    inventoryItems.clear();
-                    inventoryItems.addAll(tempInventoryItems);
-                    adapter.notifyDataSetChanged();
-                }
+                adapter.submitList(new ArrayList<>(inventoryItems));
+                updateTotalValue();
+                fetchLatestPrices(); // Inicia a busca por preços novos em segundo plano
             });
         });
     }
 
-    // Obtém o preço de um item da Steam.
-    private double getSteamPrice(String item) {
-        double cachedPrice = priceCache.getPrice(item);
-        if (cachedPrice != -1) {
-            return cachedPrice;
-        }
+    private void fetchLatestPrices() {
+        for (int i = 0; i < inventoryItems.size(); i++) {
+            final int index = i;
+            ApiRequestExecutor.getInstance().execute(() -> {
+                InventoryItem item = inventoryItems.get(index);
+                double freshPrice = priceCache.getFreshPrice(item.getName());
 
+                if (freshPrice == -1) { // Só busca se o preço não for "fresco"
+                    double newPrice;
+                    switch (Objects.requireNonNull(item.getType())) {
+                        case "Steam" -> newPrice = fetchSteamPrice(item.getName());
+                        case "Crypto" -> newPrice = fetchCryptoPrice(item.getName());
+                        default -> newPrice = 0.0;
+                    }
+                    item.setPrice(newPrice);
+
+                    handler.post(() -> {
+                        adapter.notifyItemChanged(index);
+                        updateTotalValue();
+                    });
+                }
+            });
+        }
+    }
+    
+    private void updateTotalValue(){
+        double totalValue = 0;
+        for(InventoryItem item : inventoryItems){
+            if(item.getPrice() > 0){
+                totalValue += item.getPrice() * item.getQuantity();
+            }
+        }
+        totalInventoryValueTextView.setText(getString(R.string.total_label) + String.format(Locale.getDefault(), " %.2f€", totalValue));
+    }
+
+    private double fetchSteamPrice(String item) {
         try {
-            String url = "https://steamcommunity.com/market/priceoverview/?currency=3&appid=730&market_hash_name=" + URLEncoder.encode(item, StandardCharsets.UTF_8.toString());
+            String url = "https://steamcommunity.com/market/priceoverview/?currency=3&appid=730&market_hash_name=" + URLEncoder.encode(item, StandardCharsets.UTF_8.name());
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
             c.setRequestProperty("User-Agent", "Mozilla/5.0");
             BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
@@ -174,20 +172,18 @@ public class InventoryPriceActivity extends AppCompatActivity {
             JSONObject json = new JSONObject(sb.toString());
             String priceStr = json.optString("lowest_price", json.optString("median_price", "0"));
             double price = parsePrice(priceStr);
-            priceCache.savePrice(item, price);
+            if (price > 0) {
+                priceCache.savePrice(item, price);
+            }
             return price;
         } catch (Exception e) {
-            return 0.0;
+            Log.w(TAG, "Erro Steam, a usar o cache para " + item);
+            double stalePrice = priceCache.getAnyPrice(item);
+            return (stalePrice != -1) ? stalePrice : 0.0;
         }
     }
 
-    // Obtém o preço de uma criptomoeda.
-    private double getCryptoPrice(String cryptoId) {
-        double cachedPrice = priceCache.getPrice(cryptoId);
-        if (cachedPrice != -1) {
-            return cachedPrice;
-        }
-
+    private double fetchCryptoPrice(String cryptoId) {
         try {
             String url = "https://api.coingecko.com/api/v3/simple/price?ids=" + cryptoId.toLowerCase() + "&vs_currencies=eur";
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
@@ -199,21 +195,17 @@ public class InventoryPriceActivity extends AppCompatActivity {
             r.close();
             JSONObject json = new JSONObject(sb.toString());
             double price = json.getJSONObject(cryptoId.toLowerCase()).getDouble("eur");
-            priceCache.savePrice(cryptoId, price);
+            if (price > 0) {
+                priceCache.savePrice(cryptoId, price);
+            }
             return price;
         } catch (Exception e) {
-            Log.e(TAG, "Erro Crypto para " + cryptoId, e);
-            return 0.0;
+            Log.w(TAG, "Erro Crypto, a usar o cache para " + cryptoId);
+            double stalePrice = priceCache.getAnyPrice(cryptoId);
+            return (stalePrice != -1) ? stalePrice : 0.0;
         }
     }
 
-    // Obtém o preço de uma ação.
-    private double getStockPrice(String stockTicker) {
-        Log.d(TAG, "Buscando o preço da ação para: " + stockTicker + " (não implementado)");
-        return 0.0;
-    }
-
-    // Converte um texto para um número decimal.
     private double parsePrice(String value) {
         if (value == null || value.isEmpty()) return 0.0;
         String cleaned = value.replaceAll("[^0-9,.]", "").replace(",", ".");

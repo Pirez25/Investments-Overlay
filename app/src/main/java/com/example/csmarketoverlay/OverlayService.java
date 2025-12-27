@@ -1,6 +1,7 @@
 package com.example.csmarketoverlay;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -9,6 +10,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
@@ -22,91 +24,99 @@ import android.view.WindowManager;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-// O serviço que corre em fundo para mostrar o overlay.
 public class OverlayService extends Service {
 
-    // Elementos da interface do overlay.
     private WindowManager windowManager;
     private View overlayView;
     private TextView overlayText;
     private WindowManager.LayoutParams params;
 
-    // Mapas para guardar os dados do inventário.
     private Map<String, Double> itemPrices = new HashMap<>();
     private Map<String, String> itemTypes = new HashMap<>();
     private Map<String, String> customNames = new HashMap<>();
+    private Map<String, Double> quantities = new HashMap<>();
 
-    // Variável para saber se o serviço está a correr.
     private static boolean isRunning = false;
+    public static final String EXTRA_RESULT_CODE = "RESULT_CODE";
+    public static final String EXTRA_RESULT_DATA = "RESULT_DATA";
 
-    // Método para verificar se o serviço está a correr.
     public static boolean isRunning() {
         return isRunning;
     }
 
-    // Receiver para ouvir as atualizações de dados.
     private final BroadcastReceiver overlayReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent == null) return;
-
-            String action = intent.getAction();
-
-            // Se a ação for para atualizar os dados, atualiza os mapas e o overlay.
-            if ("UPDATE_OVERLAY_DATA".equals(action)) {
-                itemPrices = (Map<String, Double>) intent.getSerializableExtra("itemPrices");
-                itemTypes = (Map<String, String>) intent.getSerializableExtra("itemTypes");
-                customNames = (Map<String, String>) intent.getSerializableExtra("customNames");
-                refreshOverlay(); // Atualiza o texto do overlay.
+            if (intent != null && "UPDATE_OVERLAY_DATA".equals(intent.getAction())) {
+                handleUpdateData(intent);
             }
         }
     };
 
-    // Este método é chamado quando o serviço é iniciado.
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        try {
-            // Remove o overlay antigo se ele existir.
-            if (overlayView != null && windowManager != null) {
-                try { windowManager.removeViewImmediate(overlayView); } catch (Exception ignored) {}
-                overlayView = null;
-            }
+    @SuppressWarnings("unchecked")
+    private void handleUpdateData(Intent intent) {
+        Serializable pricesExtra = intent.getSerializableExtra("itemPrices");
+        Serializable typesExtra = intent.getSerializableExtra("itemTypes");
+        Serializable namesExtra = intent.getSerializableExtra("customNames");
+        Serializable quantitiesExtra = intent.getSerializableExtra("quantities");
 
-            // Cria o overlay.
-            createOverlay();
-
-            // Regista o receiver para ouvir as atualizações de dados.
-            IntentFilter filter = new IntentFilter("UPDATE_OVERLAY_DATA");
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(overlayReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                registerReceiver(overlayReceiver, filter);
-            }
-
-            // Marca o serviço como a correr.
-            isRunning = true;
-
-        } catch (Exception e) {
-            Log.e("OverlayService", "Erro ao iniciar", e);
-            stopSelf(); // Para o serviço se houver um erro.
+        if (pricesExtra instanceof Map) {
+            itemPrices = (Map<String, Double>) pricesExtra;
         }
-        return START_STICKY; // O serviço é reiniciado se for morto pelo sistema.
+        if (typesExtra instanceof Map) {
+            itemTypes = (Map<String, String>) typesExtra;
+        }
+        if (namesExtra instanceof Map) {
+            customNames = (Map<String, String>) namesExtra;
+        }
+        if (quantitiesExtra instanceof Map) {
+            quantities = (Map<String, Double>) quantitiesExtra;
+        }
+        refreshOverlay();
     }
 
-    // Cria e mostra o overlay no ecrã.
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null) {
+            int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED);
+            Intent resultData = intent.getParcelableExtra(EXTRA_RESULT_DATA);
+
+            if (resultCode == Activity.RESULT_OK && resultData != null) {
+                startForegroundServiceWithNotification();
+                if (overlayView == null) {
+                    createOverlay();
+                }
+                registerOverlayReceiver();
+                isRunning = true;
+            } else {
+                stopSelf();
+            }
+        } else {
+            stopSelf();
+        }
+        return START_NOT_STICKY;
+    }
+
+    private void registerOverlayReceiver() {
+        IntentFilter filter = new IntentFilter("UPDATE_OVERLAY_DATA");
+        ContextCompat.registerReceiver(this, overlayReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+    }
+
     private void createOverlay() {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        if (windowManager == null) return;
+        if (windowManager == null) {
+            stopSelf();
+            return;
+        }
 
-        // Infla o layout do overlay.
         overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
         overlayText = overlayView.findViewById(R.id.textOverlay);
 
@@ -116,23 +126,19 @@ public class OverlayService extends Service {
             return;
         }
 
-        // Configura o aspeto do overlay.
-        overlayText.setText("A carregar...");
-        overlayText.setPadding(18, 14, 18, 14);
+        overlayText.setText(R.string.overlay_loading);
+        overlayText.setPadding(8, 4, 8, 4);
         overlayText.setTextColor(0xFFFFFFFF);
 
-        // Define o tipo de janela do overlay.
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
-        // Configura os parâmetros do overlay.
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
         );
 
@@ -140,46 +146,72 @@ public class OverlayService extends Service {
         params.x = 0;
         params.y = 0;
 
-        // Adiciona o overlay à janela.
         windowManager.addView(overlayView, params);
-        makeDraggable(); // Torna o overlay arrastável.
-        startForegroundNotification(); // Mostra uma notificação para o serviço.
+        makeDraggable();
     }
 
-    // Atualiza o texto do overlay.
+    private void startForegroundServiceWithNotification() {
+        String channelId = "overlay_channel";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel ch = new NotificationChannel(channelId, getString(R.string.overlay_active_title), NotificationManager.IMPORTANCE_LOW);
+            getSystemService(NotificationManager.class).createNotificationChannel(ch);
+        }
+
+        Notification n = new NotificationCompat.Builder(this, channelId)
+                .setContentTitle(getString(R.string.overlay_active_title))
+                .setContentText(getString(R.string.overlay_active_content))
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setOngoing(true)
+                .build();
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+            } else {
+                startForeground(1, n);
+            }
+        } catch (Exception e) {
+            Log.e("OverlayService", "Error starting foreground service", e);
+            stopSelf();
+        }
+    }
+
     private void refreshOverlay() {
         if (overlayText == null) return;
 
         StringBuilder sb = new StringBuilder();
+        boolean hasItemsToShow = false;
 
-        if (itemPrices == null || itemPrices.isEmpty()) {
-            sb.append("A carregar inventário...");
-        } else {
+        if (itemPrices != null && !itemPrices.isEmpty()) {
             for (String item : itemPrices.keySet()) {
                 String customName = customNames.get(item);
-                String displayName = (customName != null && !customName.isEmpty()) ? customName : item.split(" \\|")[0];
-                Double preco = itemPrices.get(item);
 
-                sb.append(displayName).append(": ");
-                if (preco != null && preco > 0) {
-                    sb.append(String.format(Locale.getDefault(), "%.2f€", preco));
-                } else {
-                    sb.append("a carregar...");
+                if (customName != null && !customName.trim().isEmpty()) {
+                    hasItemsToShow = true;
+                    Double precoUnitario = itemPrices.get(item);
+
+                    sb.append(customName).append(": ");
+                    if (precoUnitario != null && precoUnitario > 0) {
+                        sb.append(String.format(Locale.getDefault(), "%.2f€", precoUnitario));
+                    } else {
+                        sb.append(getString(R.string.overlay_loading));
+                    }
+                    sb.append("\n");
                 }
-                sb.append("\n");
             }
         }
 
-        // Remove a última quebra de linha.
-        while (sb.length() > 0 && sb.charAt(sb.length() - 1) == '\n') {
-            sb.setLength(sb.length() - 1);
+        if (hasItemsToShow) {
+            if (sb.length() > 0) {
+                sb.setLength(sb.length() - 1);
+            }
+        } else {
+            sb.append(getString(R.string.overlay_no_nicks));
         }
 
-        // Atualiza o texto do overlay na thread principal.
         overlayText.post(() -> overlayText.setText(sb.toString()));
     }
 
-    // Torna o overlay arrastável.
     private void makeDraggable() {
         if (overlayView == null) return;
 
@@ -187,6 +219,7 @@ public class OverlayService extends Service {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
 
+            @SuppressLint("ClickableViewAccessibility")
             @Override
             public boolean onTouch(View v, MotionEvent e) {
                 switch (e.getAction()) {
@@ -216,25 +249,6 @@ public class OverlayService extends Service {
         });
     }
 
-    // Mostra uma notificação para o serviço.
-    private void startForegroundNotification() {
-        String channelId = "overlay_channel";
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(channelId, "CS2 Overlay", NotificationManager.IMPORTANCE_LOW);
-            getSystemService(NotificationManager.class).createNotificationChannel(ch);
-        }
-
-        Notification n = new Notification.Builder(this, channelId)
-                .setContentTitle("Overlay active")
-                .setContentText("Steam • Bitcoin • Tesla")
-                .setSmallIcon(android.R.drawable.ic_menu_view)
-                .setOngoing(true)
-                .build();
-
-        startForeground(1, n);
-    }
-
-    // Este método é chamado quando o serviço é destruído.
     @Override
     public void onDestroy() {
         super.onDestroy();
