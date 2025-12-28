@@ -127,7 +127,7 @@ public class OverlayService extends Service {
         }
 
         overlayText.setText(R.string.overlay_loading);
-        overlayText.setPadding(8, 4, 8, 4);
+        overlayText.setPadding(0, 0, 0, 0);
         overlayText.setTextColor(0xFFFFFFFF);
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
