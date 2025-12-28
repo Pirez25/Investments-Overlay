@@ -1,34 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#FF1E1E1E"
     android:orientation="vertical"
     android:padding="16dp"
-    android:background="#FF1E1E1E">
+    tools:context=".InventoryActivity">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="20dp"
-        android:text="@string/inventory_title"
-        android:textColor="#FF9800"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#FF2D2D2D"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerInventory"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#FF2D2D2D"
         android:clipToPadding="false"
         android:padding="8dp" />
 
     <LinearLayout
+        android:id="@+id/add_item_section"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginTop="16dp">
+        android:layout_marginTop="16dp"
+        android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -85,14 +86,17 @@
                 android:padding="12dp"
                 android:textColor="#FFFFFF" />
 
-            <Button
-                android:id="@+id/btnAdd"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:backgroundTint="#FF9800"
-                android:text="@string/add_button"
-                android:textColor="@android:color/white" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btnAdd"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#FF9800"
+            android:text="@string/add_button"
+            android:textColor="@android:color/white" />
+
     </LinearLayout>
+
 </LinearLayout>

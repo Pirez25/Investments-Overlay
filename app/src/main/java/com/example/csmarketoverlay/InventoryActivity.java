@@ -7,6 +7,7 @@ import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
@@ -32,9 +33,12 @@ import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class InventoryActivity extends AppCompatActivity implements InventoryAdapter.OnItemInteractionListener {
 
@@ -54,7 +58,6 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        DynamicColors.applyToActivitiesIfAvailable(this.getApplication());
         setContentView(R.layout.activity_inventory);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -70,6 +73,7 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
 
         etItemName = findViewById(R.id.etItemName);
         etQty = findViewById(R.id.etItemQty);
+        etQty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         etCustomName = findViewById(R.id.etCustomName);
         Button btnAdd = findViewById(R.id.btnAdd);
         itemTypeSpinner = findViewById(R.id.itemTypeSpinner);
@@ -84,28 +88,31 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
     }
 
     private void loadSuggestionData() {
-        try {
-            AssetManager assetManager = getAssets();
-            InputStream is = assetManager.open("csgo_items.json");
-            int size = is.available();
-            byte[] buffer = new byte[size];
-            is.read(buffer);
-            is.close();
-            String json = new String(buffer, StandardCharsets.UTF_8);
-            JSONObject obj = new JSONObject(json);
+        ApiRequestExecutor.getInstance().execute(() -> {
+            try {
+                AssetManager assetManager = getAssets();
+                InputStream is = assetManager.open("csgo_items.json");
+                int size = is.available();
+                byte[] buffer = new byte[size];
+                is.read(buffer);
+                is.close();
+                String json = new String(buffer, StandardCharsets.UTF_8);
+                JSONObject obj = new JSONObject(json);
 
-            JSONArray csgoArray = obj.getJSONArray("csgo_items");
-            for (int i = 0; i < csgoArray.length(); i++) {
-                csgoItemsSuggestions.add(csgoArray.getString(i));
-            }
+                JSONArray csgoArray = obj.getJSONArray("csgo_items");
+                for (int i = 0; i < csgoArray.length(); i++) {
+                    csgoItemsSuggestions.add(csgoArray.getString(i));
+                }
 
-            JSONArray cryptoArray = obj.getJSONArray("crypto_ids");
-            for (int i = 0; i < cryptoArray.length(); i++) {
-                cryptoIdsSuggestions.add(cryptoArray.getString(i));
+                JSONArray cryptoArray = obj.getJSONArray("crypto_ids");
+                for (int i = 0; i < cryptoArray.length(); i++) {
+                    cryptoIdsSuggestions.add(cryptoArray.getString(i));
+                }
+                 handler.post(this::setupSpinnerAndSuggestions);
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
+        });
     }
 
     private void setupSpinnerAndSuggestions() {
@@ -161,6 +168,14 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
             Toast.makeText(this, R.string.fill_everything_toast, Toast.LENGTH_SHORT).show();
             return;
         }
+        
+        double qty;
+        try {
+            qty = Double.parseDouble(qtyStr);
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, R.string.invalid_quantity_toast, Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         ApiRequestExecutor.getInstance().execute(() -> {
             if (db.inventoryDao().getItemByName(name) != null) {
@@ -168,14 +183,13 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
                 return;
             }
 
-            double qty = Double.parseDouble(qtyStr);
             InventoryItem newItem = new InventoryItem(name, qty, 0, type, customName);
             db.inventoryDao().insertAll(newItem);
             
             handler.post(() -> {
                 inventoryItems.add(newItem);
                 Collections.sort(inventoryItems, (o1, o2) -> o1.getName().compareTo(o2.getName()));
-                adapter.notifyDataSetChanged(); 
+                adapter.notifyItemInserted(inventoryItems.indexOf(newItem));
                 etItemName.setText("");
                 etCustomName.setText("");
                 etQty.setText("");
@@ -186,15 +200,17 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
 
     @Override
     public void onRemoveItem(InventoryItem item) {
-        int position = inventoryItems.indexOf(item);
-        if (position != -1) {
-            inventoryItems.remove(position);
-            adapter.notifyItemRemoved(position);
-            ApiRequestExecutor.getInstance().execute(() -> {
-                db.inventoryDao().deleteByName(item.getName());
+        ApiRequestExecutor.getInstance().execute(() -> {
+            db.inventoryDao().deleteByName(item.getName());
+            handler.post(() -> {
+                int position = inventoryItems.indexOf(item);
+                if (position != -1) {
+                    inventoryItems.remove(position);
+                    adapter.notifyItemRemoved(position);
+                }
                 sendInventoryUpdateBroadcast();
             });
-        }
+        });
     }
 
     @Override
@@ -207,8 +223,12 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
         builder.setTitle(R.string.edit_quantity_title);
 
         final EditText input = new EditText(this);
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        input.setText(String.valueOf(item.getQuantity()));
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        
+        NumberFormat nf = NumberFormat.getInstance(Locale.US);
+        nf.setMinimumFractionDigits(0);
+        nf.setMaximumFractionDigits(8); 
+        input.setText(nf.format(item.getQuantity()));
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -220,16 +240,22 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
         builder.setPositiveButton(R.string.ok, (dialog, which) -> {
             String newQtyStr = input.getText().toString();
             if (!newQtyStr.isEmpty()) {
-                double newQty = Double.parseDouble(newQtyStr);
-                int position = inventoryItems.indexOf(item);
-                if(position != -1){
-                    InventoryItem updatedItem = new InventoryItem(item.getName(), newQty, item.getPrice(), item.getType(), item.getCustomName());
-                    inventoryItems.set(position, updatedItem);
-                    adapter.notifyItemChanged(position);
+                try {
+                    double newQty = Double.parseDouble(newQtyStr);
                     ApiRequestExecutor.getInstance().execute(() -> {
                         db.inventoryDao().updateQuantity(item.getName(), newQty);
-                        sendInventoryUpdateBroadcast();
+                        handler.post(() -> {
+                            int position = inventoryItems.indexOf(item);
+                            if(position != -1){
+                                InventoryItem updatedItem = new InventoryItem(item.getName(), newQty, item.getPrice(), item.getType(), item.getCustomName());
+                                inventoryItems.set(position, updatedItem);
+                                adapter.notifyItemChanged(position);
+                            }
+                            sendInventoryUpdateBroadcast();
+                        });
                     });
+                } catch (NumberFormatException e) {
+                    Toast.makeText(this, R.string.invalid_quantity_toast, Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -273,7 +299,7 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
                         }
                     }
                 }
-                db.inventoryDao().insertAll(itemsToMigrate.toArray(new InventoryItem[0]));
+                ApiRequestExecutor.getInstance().execute(() -> db.inventoryDao().insertAll(itemsToMigrate.toArray(new InventoryItem[0])));
             }
             prefs.edit().putBoolean("room_migration_done", true).apply();
         }

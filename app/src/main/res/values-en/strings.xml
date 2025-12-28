@@ -1,3 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- MainActivity -->
+    <string name="main_title">Total Value</string>
+    <string name="manage_inventory">Manage Inventory</string>
+    <string name="open_overlay">Open Overlay</string>
+    <string name="close_overlay">Close Overlay</string>
+
+    <!-- OverlayService -->
+    <string name="overlay_active_title">Overlay Active</string>
+    <string name="overlay_active_content">Monitoring your investments.</string>
+    <string name="overlay_loading">Loading…</string>
+    <string name="overlay_empty">Overlay Empty</string>
+
+    <!-- InventoryActivity -->
+    <string name="inventory_title">Inventory</string>
+    <string name="item_name_hint">Item name</string>
+    <string name="custom_name_hint">Nickname</string>
+    <string name="quantity_hint">Qty</string>
+    <string name="add_button">ADD</string>
+    <string name="item_exists_toast">This item already exists.</string>
+    <string name="fill_everything_toast">Please, fill in the name and quantity.</string>
+    <string name="invalid_quantity_toast">Invalid quantity.</string>
+    <string name="edit_quantity_title">Edit Quantity</string>
+
+    <!-- InventoryPriceActivity -->
+    <string name="prices_title">Inventory Prices</string>
+    <string name="total_label">Total:</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="remove">Remove</string>
+    <string name="edit">Edit</string>
+    <string name="settings">Settings</string>
+
+    <!-- Permissions and Alerts -->
+    <string name="overlay_permission_needed">Overlay permission is required.</string>
+    <string name="screen_capture_permission_needed">Screen capture permission is required.</string>
+    <string name="hyperos_title">Setup for HyperOS / MIUI</string>
+    <string name="hyperos_message">For the overlay to work, please enable Display pop-up windows and Autostart permissions in the app settings.</string>
+    <string name="hyperos_open_settings">Open App Settings</string>
+    <string name="dismiss">Dismiss</string>
 </resources>

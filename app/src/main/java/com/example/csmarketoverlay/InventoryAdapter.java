@@ -40,7 +40,8 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
         InventoryItem item = items.get(position);
 
         holder.itemName.setText(item.getName());
-        holder.itemQuantity.setText(String.format(Locale.US, "x%.0f", item.getQuantity()));
+        // Usa um método robusto para formatar o número
+        holder.itemQuantity.setText("x" + formatQuantity(item.getQuantity()));
 
         holder.removeItemButton.setOnClickListener(v -> {
             if (listener != null) {
@@ -56,6 +57,13 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.View
 
         holder.itemQuantity.setOnClickListener(editClickListener);
         holder.editIcon.setOnClickListener(editClickListener);
+    }
+
+    private String formatQuantity(double quantity) {
+        if (quantity == (long) quantity) {
+            return String.format(Locale.US, "%d", (long) quantity);
+        }
+        return String.valueOf(quantity);
     }
 
     @Override

@@ -25,8 +25,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
-import com.google.android.material.color.DynamicColors;
-
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -48,7 +46,7 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private TextView invPriceTextView;
-    private Button btnToggle, btnManageInventory;
+    private Button btnToggle;
     private PriceCache priceCache;
     private AppDatabase db;
     private SharedPreferences prefs;
@@ -73,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
 
         invPriceTextView = findViewById(R.id.invprice);
         btnToggle = findViewById(R.id.btnToggle);
-        btnManageInventory = findViewById(R.id.btnManageInventory);
+        Button btnManageInventory = findViewById(R.id.btnManageInventory);
 
         db = AppDatabase.getDatabase(this);
         priceCache = new PriceCache(this);
@@ -279,7 +277,7 @@ public class MainActivity extends AppCompatActivity {
 
     private double parsePrice(String value) {
         if (value == null || value.isEmpty()) return 0.0;
-        String cleaned = value.replaceAll("[^0-9,.]", "").replace(",", ".");
+        String cleaned = value.replaceAll("[^,.]", "").replace(",", ".");
         try {
             return Double.parseDouble(cleaned);
         } catch (Exception e) {

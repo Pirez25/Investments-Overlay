@@ -126,8 +126,8 @@ public class OverlayService extends Service {
             return;
         }
 
-        overlayText.setText(R.string.overlay_loading);
-        overlayText.setPadding(0, 0, 0, 0);
+        overlayText.setText("A carregar...");
+        overlayText.setPadding(8, 8, 8, 8);
         overlayText.setTextColor(0xFFFFFFFF);
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
@@ -153,13 +153,13 @@ public class OverlayService extends Service {
     private void startForegroundServiceWithNotification() {
         String channelId = "overlay_channel";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(channelId, getString(R.string.overlay_active_title), NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel ch = new NotificationChannel(channelId, "Investments Overlay", NotificationManager.IMPORTANCE_LOW);
             getSystemService(NotificationManager.class).createNotificationChannel(ch);
         }
 
         Notification n = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle(getString(R.string.overlay_active_title))
-                .setContentText(getString(R.string.overlay_active_content))
+                .setContentTitle("Overlay Active")
+                .setContentText("Monitoring your investments.")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setOngoing(true)
                 .build();
@@ -194,7 +194,7 @@ public class OverlayService extends Service {
                     if (precoUnitario != null && precoUnitario > 0) {
                         sb.append(String.format(Locale.getDefault(), "%.2f€", precoUnitario));
                     } else {
-                        sb.append(getString(R.string.overlay_loading));
+                        sb.append("Loading…");
                     }
                     sb.append("\n");
                 }
@@ -206,7 +206,7 @@ public class OverlayService extends Service {
                 sb.setLength(sb.length() - 1);
             }
         } else {
-            sb.append(getString(R.string.overlay_no_nicks));
+            sb.append("Overlay Empty");
         }
 
         overlayText.post(() -> overlayText.setText(sb.toString()));
@@ -253,9 +253,13 @@ public class OverlayService extends Service {
     public void onDestroy() {
         super.onDestroy();
         isRunning = false;
-        try { unregisterReceiver(overlayReceiver); } catch (Exception ignored) {}
+        try {
+            unregisterReceiver(overlayReceiver);
+        } catch (Exception ignored) {}
         if (overlayView != null && windowManager != null) {
-            try { windowManager.removeViewImmediate(overlayView); } catch (Exception ignored) {}
+            try {
+                windowManager.removeViewImmediate(overlayView);
+            } catch (Exception ignored) {}
         }
     }
 

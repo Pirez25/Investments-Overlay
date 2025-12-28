@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class InventoryPriceActivity extends AppCompatActivity {
 
@@ -111,7 +112,6 @@ public class InventoryPriceActivity extends AppCompatActivity {
             inventoryItems.clear();
             inventoryItems.addAll(itemsFromDb);
 
-            // Mostra imediatamente a lista com os preços em cache (mesmo que antigos)
             for (InventoryItem item : inventoryItems) {
                 item.setPrice(priceCache.getAnyPrice(item.getName()));
             }
@@ -119,19 +119,23 @@ public class InventoryPriceActivity extends AppCompatActivity {
             handler.post(() -> {
                 adapter.submitList(new ArrayList<>(inventoryItems));
                 updateTotalValue();
-                fetchLatestPrices(); // Inicia a busca por preços novos em segundo plano
+                fetchLatestPrices(); 
             });
         });
     }
 
     private void fetchLatestPrices() {
+        if (inventoryItems.isEmpty()) return;
+
+        AtomicInteger pendingRequests = new AtomicInteger(inventoryItems.size());
+
         for (int i = 0; i < inventoryItems.size(); i++) {
             final int index = i;
             ApiRequestExecutor.getInstance().execute(() -> {
                 InventoryItem item = inventoryItems.get(index);
                 double freshPrice = priceCache.getFreshPrice(item.getName());
 
-                if (freshPrice == -1) { // Só busca se o preço não for "fresco"
+                if (freshPrice == -1) { 
                     double newPrice;
                     switch (Objects.requireNonNull(item.getType())) {
                         case "Steam" -> newPrice = fetchSteamPrice(item.getName());
@@ -140,13 +144,24 @@ public class InventoryPriceActivity extends AppCompatActivity {
                     }
                     item.setPrice(newPrice);
 
-                    handler.post(() -> {
-                        adapter.notifyItemChanged(index);
-                        updateTotalValue();
-                    });
+                    handler.post(() -> adapter.notifyItemChanged(index));
+                }
+                
+                if (pendingRequests.decrementAndGet() == 0) {
+                    handler.post(this::sortAndFinalizeUpdate);
                 }
             });
         }
+    }
+
+    private void sortAndFinalizeUpdate() {
+        Collections.sort(inventoryItems, (item1, item2) -> {
+            double value1 = item1.getPrice() * item1.getQuantity();
+            double value2 = item2.getPrice() * item2.getQuantity();
+            return Double.compare(value2, value1);
+        });
+        adapter.submitList(new ArrayList<>(inventoryItems));
+        updateTotalValue();
     }
     
     private void updateTotalValue(){
@@ -208,7 +223,7 @@ public class InventoryPriceActivity extends AppCompatActivity {
 
     private double parsePrice(String value) {
         if (value == null || value.isEmpty()) return 0.0;
-        String cleaned = value.replaceAll("[^0-9,.]", "").replace(",", ".");
+        String cleaned = value.replaceAll("[^,.]", "").replace(",", ".");
         try {
             return Double.parseDouble(cleaned);
         } catch (Exception e) {
