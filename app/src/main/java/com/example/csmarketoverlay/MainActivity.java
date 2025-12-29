@@ -34,6 +34,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,7 +44,6 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private TextView invPriceTextView;
@@ -54,12 +55,12 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> overlayPermissionLauncher;
     private ActivityResultLauncher<Intent> mediaProjectionLauncher;
 
+    private final List<InventoryItem> inventoryItems = Collections.synchronizedList(new ArrayList<>());
+
     private final BroadcastReceiver inventoryUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (OverlayService.isRunning()) {
-                updatePrices();
-            }
+            updatePrices();
         }
     };
 
@@ -77,7 +78,13 @@ public class MainActivity extends AppCompatActivity {
         priceCache = new PriceCache(this);
         prefs = getSharedPreferences("CSOverlayPrefs", MODE_PRIVATE);
 
-        btnManageInventory.setOnClickListener(v -> startActivity(new Intent(this, InventoryPriceActivity.class)));
+        btnManageInventory.setOnClickListener(v -> {
+            Intent intent = new Intent(this, InventoryPriceActivity.class);
+            synchronized (inventoryItems) {
+                intent.putExtra("inventory_items", (Serializable) new ArrayList<>(inventoryItems));
+            }
+            startActivity(intent);
+        });
         btnToggle.setOnClickListener(v -> toggleOverlay());
 
         ContextCompat.registerReceiver(this, inventoryUpdateReceiver, new IntentFilter("INVENTORY_UPDATED"), ContextCompat.RECEIVER_NOT_EXPORTED);
@@ -105,7 +112,6 @@ public class MainActivity extends AppCompatActivity {
                     intent.putExtra(OverlayService.EXTRA_RESULT_DATA, result.getData());
                     startService(intent);
                     updateButtonText();
-                    handler.postDelayed(this::updatePrices, 600);
                 } else {
                     Toast.makeText(this, R.string.screen_capture_permission_needed, Toast.LENGTH_SHORT).show();
                 }
@@ -122,13 +128,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(inventoryUpdateReceiver);
+        try {
+            unregisterReceiver(inventoryUpdateReceiver);
+        } catch (IllegalArgumentException e) {
+            // Receiver não estava registado
+        }
     }
 
     private void toggleOverlay() {
         if (OverlayService.isRunning()) {
             stopService(new Intent(this, OverlayService.class));
-            handler.removeCallbacksAndMessages(null);
             updateButtonText();
         } else {
             checkAndShowHyperOsInfo();
@@ -181,59 +190,82 @@ public class MainActivity extends AppCompatActivity {
 
     private void updatePrices() {
         ApiRequestExecutor.getInstance().execute(() -> {
-            List<InventoryItem> itemsFromDb = db.inventoryDao().getAll();
-            Map<String, Double> pricesSnapshot = new HashMap<>();
-            Map<String, String> itemTypesSnapshot = new HashMap<>();
-            Map<String, String> customNamesSnapshot = new HashMap<>();
-            Map<String, Double> quantitiesSnapshot = new HashMap<>();
+            List<InventoryItem> localItems = db.inventoryDao().getAll();
 
-            double total = 0;
-            for (InventoryItem item : itemsFromDb) {
-                double price = 0;
-                switch (item.getType()) {
-                    case "Steam" -> price = getSteamPrice(item.getName());
-                    case "Crypto" -> price = getCryptoPrice(item.getName());
-                }
-                pricesSnapshot.put(item.getName(), price);
-                itemTypesSnapshot.put(item.getName(), item.getType());
-                customNamesSnapshot.put(item.getName(), item.getCustomName());
-                quantitiesSnapshot.put(item.getName(), item.getQuantity());
-
-                if (price > 0) { 
-                    total += price * item.getQuantity();
+            for (InventoryItem item : localItems) {
+                if (priceCache.getFreshPrice(item.getName()) == -1) {
+                    double newPrice;
+                    if ("Steam".equals(item.getType())) {
+                        newPrice = fetchSteamPrice(item.getName());
+                    } else {
+                        newPrice = fetchCryptoPrice(item.getName());
+                    }
+                    item.setPrice(newPrice);
+                } else {
+                    item.setPrice(priceCache.getAnyPrice(item.getName()));
                 }
             }
 
-            Intent intent = new Intent("UPDATE_OVERLAY_DATA");
-            intent.putExtra("itemPrices", (Serializable) pricesSnapshot);
-            intent.putExtra("itemTypes", (Serializable) itemTypesSnapshot);
-            intent.putExtra("customNames", (Serializable) customNamesSnapshot);
-            intent.putExtra("quantities", (Serializable) quantitiesSnapshot);
-            sendBroadcast(intent);
-
-            double finalTotal = total;
-            handler.post(() -> invPriceTextView.setText(String.format(Locale.getDefault(), "%.2f€", finalTotal)));
-
-            if (OverlayService.isRunning()) {
-                handler.postDelayed(this::updatePrices, 300000);
+            synchronized (inventoryItems) {
+                inventoryItems.clear();
+                inventoryItems.addAll(localItems);
             }
+
+            updateTotalValueAndBroadcast();
         });
     }
 
-    private double getSteamPrice(String item) {
-        double freshPrice = priceCache.getFreshPrice(item);
-        if (freshPrice != -1) {
-            return freshPrice;
-        }
+    private void updateTotalValueAndBroadcast() {
+        handler.post(() -> {
+            double total = 0;
+            synchronized (inventoryItems) {
+                for (InventoryItem item : inventoryItems) {
+                    double price = item.getPrice();
+                    if (price >= 0) {
+                        total += price * item.getQuantity();
+                    }
+                }
+            }
+            invPriceTextView.setText(String.format(Locale.getDefault(), "%.2f€", total));
+
+            Intent intent = new Intent("UPDATE_OVERLAY_DATA");
+            Bundle pricesBundle = new Bundle();
+            Bundle typesBundle = new Bundle();
+            Bundle namesBundle = new Bundle();
+            Bundle quantitiesBundle = new Bundle();
+
+            synchronized (inventoryItems) {
+                for (InventoryItem item : inventoryItems) {
+                    pricesBundle.putDouble(item.getName(), item.getPrice());
+                    typesBundle.putString(item.getName(), item.getType());
+                    namesBundle.putString(item.getName(), item.getCustomName());
+                    quantitiesBundle.putDouble(item.getName(), item.getQuantity());
+                }
+            }
+
+            intent.putExtra("itemPrices", pricesBundle);
+            intent.putExtra("itemTypes", typesBundle);
+            intent.putExtra("customNames", namesBundle);
+            intent.putExtra("quantities", quantitiesBundle);
+            sendBroadcast(intent);
+        });
+    }
+
+    private double fetchSteamPrice(String item) {
         try {
-            String url = "https://steamcommunity.com/market/priceoverview/?currency=3&appid=730&market_hash_name=" + URLEncoder.encode(item, StandardCharsets.UTF_8.name());
-            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-            c.setRequestProperty("User-Agent", "Mozilla/5.0");
-            BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+            Thread.sleep(400); // Delay para não sobrecarregar a API
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return priceCache.getAnyPrice(item);
+        }
+        
+        String urlStr = "https://steamcommunity.com/market/priceoverview/?currency=3&appid=730&market_hash_name=" + URLEncoder.encode(item, StandardCharsets.UTF_8);
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(new URL(urlStr).openStream()))) {
             StringBuilder sb = new StringBuilder();
             String line;
-            while ((line = r.readLine()) != null) sb.append(line);
-            r.close();
+            while ((line = r.readLine()) != null) {
+                sb.append(line);
+            }
             JSONObject json = new JSONObject(sb.toString());
             String priceStr = json.optString("lowest_price", json.optString("median_price", "0"));
             double price = parsePrice(priceStr);
@@ -242,42 +274,32 @@ public class MainActivity extends AppCompatActivity {
             }
             return price;
         } catch (Exception e) {
-            Log.w(TAG, "Erro Steam, a usar o cache para " + item);
-            double stalePrice = priceCache.getAnyPrice(item);
-            return (stalePrice != -1) ? stalePrice : 0.0;
+            Log.w(TAG, "Erro Steam para " + item, e);
+            return priceCache.getAnyPrice(item);
         }
     }
 
-    private double getCryptoPrice(String cryptoId) {
-        double freshPrice = priceCache.getFreshPrice(cryptoId);
-        if (freshPrice != -1) {
-            return freshPrice;
-        }
-        try {
-            String url = "https://api.coingecko.com/api/v3/simple/price?ids=" + cryptoId.toLowerCase() + "&vs_currencies=eur";
-            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-            c.setRequestProperty("User-Agent", "Mozilla/5.0");
-            BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+    private double fetchCryptoPrice(String cryptoId) {
+        String urlStr = "https://api.coingecko.com/api/v3/simple/price?ids=" + cryptoId.toLowerCase() + "&vs_currencies=eur";
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(new URL(urlStr).openStream()))) {
             StringBuilder sb = new StringBuilder();
             String line;
-            while ((line = r.readLine()) != null) sb.append(line);
-            r.close();
+            while ((line = r.readLine()) != null) {
+                sb.append(line);
+            }
             JSONObject json = new JSONObject(sb.toString());
             double price = json.getJSONObject(cryptoId.toLowerCase()).getDouble("eur");
-            if (price > 0) {
-                priceCache.savePrice(cryptoId, price);
-            }
+            priceCache.savePrice(cryptoId, price);
             return price;
         } catch (Exception e) {
-            Log.w(TAG, "Erro Crypto, a usar o cache para " + cryptoId);
-            double stalePrice = priceCache.getAnyPrice(cryptoId);
-            return (stalePrice != -1) ? stalePrice : 0.0;
+            Log.w(TAG, "Erro Crypto para " + cryptoId, e);
+            return priceCache.getAnyPrice(cryptoId);
         }
     }
-
+    
     private double parsePrice(String value) {
         if (value == null || value.isEmpty()) return 0.0;
-        String cleaned = value.replaceAll("[^,.]", "").replace(",", ".");
+        String cleaned = value.replaceAll("[^0-9,.]", "").replace(",", ".");
         try {
             return Double.parseDouble(cleaned);
         } catch (Exception e) {

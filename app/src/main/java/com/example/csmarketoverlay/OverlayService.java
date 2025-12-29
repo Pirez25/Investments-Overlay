@@ -10,10 +10,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
@@ -27,24 +31,26 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
-import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
 public class OverlayService extends Service {
 
+    private static final String TAG = "OverlayService";
     private WindowManager windowManager;
     private View overlayView;
     private TextView overlayText;
     private WindowManager.LayoutParams params;
+    private SharedPreferences prefs;
 
     private Map<String, Double> itemPrices = new HashMap<>();
-    private Map<String, String> itemTypes = new HashMap<>();
     private Map<String, String> customNames = new HashMap<>();
-    private Map<String, Double> quantities = new HashMap<>();
 
     private static boolean isRunning = false;
+    private boolean receiverRegistered = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
     public static final String EXTRA_RESULT_CODE = "RESULT_CODE";
     public static final String EXTRA_RESULT_DATA = "RESULT_DATA";
 
@@ -61,25 +67,25 @@ public class OverlayService extends Service {
         }
     };
 
-    @SuppressWarnings("unchecked")
-    private void handleUpdateData(Intent intent) {
-        Serializable pricesExtra = intent.getSerializableExtra("itemPrices");
-        Serializable typesExtra = intent.getSerializableExtra("itemTypes");
-        Serializable namesExtra = intent.getSerializableExtra("customNames");
-        Serializable quantitiesExtra = intent.getSerializableExtra("quantities");
+    private final Runnable refreshRunnable = this::buildAndSetText;
 
-        if (pricesExtra instanceof Map) {
-            itemPrices = (Map<String, Double>) pricesExtra;
+    private void handleUpdateData(Intent intent) {
+        Bundle pricesBundle = intent.getBundleExtra("itemPrices");
+        if (pricesBundle != null) {
+            itemPrices.clear();
+            for (String key : pricesBundle.keySet()) {
+                itemPrices.put(key, pricesBundle.getDouble(key, -1.0));
+            }
         }
-        if (typesExtra instanceof Map) {
-            itemTypes = (Map<String, String>) typesExtra;
+
+        Bundle namesBundle = intent.getBundleExtra("customNames");
+        if (namesBundle != null) {
+            customNames.clear();
+            for (String key : namesBundle.keySet()) {
+                customNames.put(key, namesBundle.getString(key, ""));
+            }
         }
-        if (namesExtra instanceof Map) {
-            customNames = (Map<String, String>) namesExtra;
-        }
-        if (quantitiesExtra instanceof Map) {
-            quantities = (Map<String, Double>) quantitiesExtra;
-        }
+        
         refreshOverlay();
     }
 
@@ -93,9 +99,13 @@ public class OverlayService extends Service {
                 startForegroundServiceWithNotification();
                 if (overlayView == null) {
                     createOverlay();
+                    if (overlayView == null) {
+                        stopSelf();
+                        return START_NOT_STICKY;
+                    }
                 }
                 registerOverlayReceiver();
-                isRunning = true;
+                isRunning = true; 
             } else {
                 stopSelf();
             }
@@ -106,12 +116,15 @@ public class OverlayService extends Service {
     }
 
     private void registerOverlayReceiver() {
+        if (receiverRegistered) return;
         IntentFilter filter = new IntentFilter("UPDATE_OVERLAY_DATA");
         ContextCompat.registerReceiver(this, overlayReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+        receiverRegistered = true;
     }
 
     private void createOverlay() {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        prefs = getSharedPreferences("CSOverlayPrefs", MODE_PRIVATE);
         if (windowManager == null) {
             stopSelf();
             return;
@@ -120,19 +133,7 @@ public class OverlayService extends Service {
         overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
         overlayText = overlayView.findViewById(R.id.textOverlay);
 
-        if (overlayText == null) {
-            Log.e("OverlayService", "textOverlay não encontrado!");
-            stopSelf();
-            return;
-        }
-
-        overlayText.setText("A carregar...");
-        overlayText.setPadding(8, 8, 8, 8);
-        overlayText.setTextColor(0xFFFFFFFF);
-
-        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                : WindowManager.LayoutParams.TYPE_PHONE;
+        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
 
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -143,8 +144,8 @@ public class OverlayService extends Service {
         );
 
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 0;
-        params.y = 0;
+        params.x = prefs.getInt("overlay_x", 20);
+        params.y = prefs.getInt("overlay_y", 100);
 
         windowManager.addView(overlayView, params);
         makeDraggable();
@@ -158,8 +159,8 @@ public class OverlayService extends Service {
         }
 
         Notification n = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("Overlay Active")
-                .setContentText("Monitoring your investments.")
+                .setContentTitle(getString(R.string.overlay_active_title))
+                .setContentText(getString(R.string.overlay_active_content))
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setOngoing(true)
                 .build();
@@ -171,12 +172,17 @@ public class OverlayService extends Service {
                 startForeground(1, n);
             }
         } catch (Exception e) {
-            Log.e("OverlayService", "Error starting foreground service", e);
+            Log.e(TAG, "Error starting foreground service", e);
             stopSelf();
         }
     }
 
     private void refreshOverlay() {
+        handler.removeCallbacks(refreshRunnable);
+        handler.postDelayed(refreshRunnable, 100);
+    }
+
+    private void buildAndSetText() {
         if (overlayText == null) return;
 
         StringBuilder sb = new StringBuilder();
@@ -191,10 +197,10 @@ public class OverlayService extends Service {
                     Double precoUnitario = itemPrices.get(item);
 
                     sb.append(customName).append(": ");
-                    if (precoUnitario != null && precoUnitario > 0) {
+                    if (precoUnitario != null && precoUnitario >= 0) {
                         sb.append(String.format(Locale.getDefault(), "%.2f€", precoUnitario));
                     } else {
-                        sb.append("Loading…");
+                        sb.append(getString(R.string.overlay_loading));
                     }
                     sb.append("\n");
                 }
@@ -206,10 +212,10 @@ public class OverlayService extends Service {
                 sb.setLength(sb.length() - 1);
             }
         } else {
-            sb.append("Overlay Empty");
+            sb.append(getString(R.string.overlay_empty));
         }
 
-        overlayText.post(() -> overlayText.setText(sb.toString()));
+        overlayText.setText(sb.toString());
     }
 
     private void makeDraggable() {
@@ -243,6 +249,13 @@ public class OverlayService extends Service {
 
                         windowManager.updateViewLayout(overlayView, params);
                         return true;
+                    
+                    case MotionEvent.ACTION_UP:
+                        prefs.edit()
+                            .putInt("overlay_x", params.x)
+                            .putInt("overlay_y", params.y)
+                            .apply();
+                        return true;
                 }
                 return false;
             }
@@ -253,9 +266,12 @@ public class OverlayService extends Service {
     public void onDestroy() {
         super.onDestroy();
         isRunning = false;
-        try {
-            unregisterReceiver(overlayReceiver);
-        } catch (Exception ignored) {}
+        if (receiverRegistered) {
+            try {
+                unregisterReceiver(overlayReceiver);
+            } catch (Exception ignored) {}
+            receiverRegistered = false;
+        }
         if (overlayView != null && windowManager != null) {
             try {
                 windowManager.removeViewImmediate(overlayView);

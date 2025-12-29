@@ -5,11 +5,11 @@ import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
-// Define a tabela "inventory_items" para a base de dados Room.
-@Entity(tableName = "inventory_items")
-public class InventoryItem {
+import java.io.Serializable;
 
-    // O nome completo do item (ex: "AK-47 | Redline (Field-Tested)") é a chave primária.
+@Entity(tableName = "inventory_items")
+public class InventoryItem implements Serializable {
+
     @PrimaryKey
     @NonNull
     @ColumnInfo(name = "name")
@@ -18,15 +18,12 @@ public class InventoryItem {
     @ColumnInfo(name = "quantity")
     private final double quantity;
 
-    // O preço não é final, pois é atualizado com frequência.
     @ColumnInfo(name = "price")
     private double price;
 
-    // O tipo do item (ex: "Steam", "Crypto").
     @ColumnInfo(name = "type")
     private final String type;
 
-    // A alcunha do item, pode ser nula ou vazia.
     @ColumnInfo(name = "custom_name")
     private final String customName;
 
@@ -38,7 +35,6 @@ public class InventoryItem {
         this.customName = customName;
     }
 
-    // Getters
     @NonNull
     public String getName() {
         return name;
@@ -60,7 +56,6 @@ public class InventoryItem {
         return customName;
     }
 
-    // Setter
     public void setPrice(double price) {
         this.price = price;
     }

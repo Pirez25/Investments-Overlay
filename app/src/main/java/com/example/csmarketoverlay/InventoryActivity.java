@@ -202,14 +202,7 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
     public void onRemoveItem(InventoryItem item) {
         ApiRequestExecutor.getInstance().execute(() -> {
             db.inventoryDao().deleteByName(item.getName());
-            handler.post(() -> {
-                int position = inventoryItems.indexOf(item);
-                if (position != -1) {
-                    inventoryItems.remove(position);
-                    adapter.notifyItemRemoved(position);
-                }
-                sendInventoryUpdateBroadcast();
-            });
+            handler.post(this::loadInventoryFromDb);
         });
     }
 
@@ -244,15 +237,7 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
                     double newQty = Double.parseDouble(newQtyStr);
                     ApiRequestExecutor.getInstance().execute(() -> {
                         db.inventoryDao().updateQuantity(item.getName(), newQty);
-                        handler.post(() -> {
-                            int position = inventoryItems.indexOf(item);
-                            if(position != -1){
-                                InventoryItem updatedItem = new InventoryItem(item.getName(), newQty, item.getPrice(), item.getType(), item.getCustomName());
-                                inventoryItems.set(position, updatedItem);
-                                adapter.notifyItemChanged(position);
-                            }
-                            sendInventoryUpdateBroadcast();
-                        });
+                        handler.post(this::loadInventoryFromDb);
                     });
                 } catch (NumberFormatException e) {
                     Toast.makeText(this, R.string.invalid_quantity_toast, Toast.LENGTH_SHORT).show();
@@ -303,6 +288,12 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
             }
             prefs.edit().putBoolean("room_migration_done", true).apply();
         }
+        loadInventoryFromDb();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         loadInventoryFromDb();
     }
 }
