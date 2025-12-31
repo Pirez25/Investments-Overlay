@@ -15,8 +15,8 @@ import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -51,6 +51,7 @@ public class OverlayService extends Service {
     private boolean receiverRegistered = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    public static final String ACTION_OVERLAY_STATUS_CHANGED = "com.example.csmarketoverlay.OVERLAY_STATUS_CHANGED";
     public static final String EXTRA_RESULT_CODE = "RESULT_CODE";
     public static final String EXTRA_RESULT_DATA = "RESULT_DATA";
 
@@ -105,7 +106,7 @@ public class OverlayService extends Service {
                     }
                 }
                 registerOverlayReceiver();
-                isRunning = true; 
+                setServiceStatus(true);
             } else {
                 stopSelf();
             }
@@ -265,7 +266,7 @@ public class OverlayService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        isRunning = false;
+        setServiceStatus(false);
         if (receiverRegistered) {
             try {
                 unregisterReceiver(overlayReceiver);
@@ -277,6 +278,11 @@ public class OverlayService extends Service {
                 windowManager.removeViewImmediate(overlayView);
             } catch (Exception ignored) {}
         }
+    }
+
+    private void setServiceStatus(boolean running) {
+        isRunning = running;
+        sendBroadcast(new Intent(ACTION_OVERLAY_STATUS_CHANGED));
     }
 
     @Nullable @Override
